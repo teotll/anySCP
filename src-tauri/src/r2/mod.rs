@@ -599,7 +599,7 @@ pub async fn r2_update_custom_domain(
     r2_manager: State<'_, Arc<R2Manager>>,
 ) -> Result<Value, R2Error> {
     validate_custom_domain(&domain)?;
-    validate_json_object(&settings, "custom domain settings")?;
+    validate_non_empty_json_object(&settings, "custom domain settings")?;
     let encoded_domain = percent_encode_path_segment(&domain);
     bucket_json_command(
         connection_id,
@@ -813,6 +813,16 @@ fn validate_json_object(value: &Value, label: &str) -> Result<(), R2Error> {
     Ok(())
 }
 
+fn validate_non_empty_json_object(value: &Value, label: &str) -> Result<(), R2Error> {
+    validate_json_object(value, label)?;
+    if value.as_object().is_some_and(|object| object.is_empty()) {
+        return Err(R2Error::InvalidRequest(format!(
+            "{label} must include at least one setting"
+        )));
+    }
+    Ok(())
+}
+
 fn decode_error(status: StatusCode, body: &str, error: &serde_json::Error) -> R2Error {
     R2Error::Decode(format!(
         "HTTP {status}: invalid response: {error}; body: {}",
@@ -915,6 +925,13 @@ mod tests {
     #[test]
     fn rejects_non_object_json_policy() {
         let err = validate_json_object(&json!([]), "CORS policy").expect_err("array root rejected");
+        assert!(matches!(err, R2Error::InvalidRequest(_)));
+    }
+
+    #[test]
+    fn rejects_empty_custom_domain_settings() {
+        let err = validate_non_empty_json_object(&json!({}), "custom domain settings")
+            .expect_err("empty update is not useful");
         assert!(matches!(err, R2Error::InvalidRequest(_)));
     }
 

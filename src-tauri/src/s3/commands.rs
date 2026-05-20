@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use s3::Bucket;
 use tauri::{AppHandle, Emitter, State};
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::db::HostDb;
 use super::{
@@ -216,9 +216,11 @@ pub async fn s3_update_connection(
         }
     } else {
         let vault_key = r2_admin_vault_key(&id);
-        let _ = tokio::task::spawn_blocking(move || {
-            crate::vault::delete_credential(&vault_key)
-        }).await;
+        match tokio::task::spawn_blocking(move || crate::vault::delete_credential(&vault_key)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => warn!(error = %err, "failed to delete R2 admin token"),
+            Err(err) => warn!(error = %err, "R2 admin token deletion task failed"),
+        }
     }
 
     Ok(())

@@ -73,15 +73,15 @@ const EMPTY_LIFECYCLE = `{
 function errorMessage(err: unknown, fallback: string) {
   if (!err || typeof err !== "object") return fallback;
   const maybeError = err as { kind?: string; message?: string };
-  if (maybeError.kind === "missing_api_token") {
-    return "This R2 connection is missing a Cloudflare API token. Edit the connection and add an R2 admin token.";
-  }
-  if (maybeError.kind === "missing_account_id") {
-    return "This R2 connection is missing its Cloudflare Account ID. Edit the connection and add it.";
-  }
-  if (maybeError.kind === "not_r2_connection") {
-    return "Select a Cloudflare R2 connection before using the R2 dashboard.";
-  }
+  if (maybeError.kind === "missing_api_token") return "This R2 connection is missing a Cloudflare API token. Edit the connection and add an R2 admin token.";
+  if (maybeError.kind === "missing_account_id") return "This R2 connection is missing its Cloudflare Account ID. Edit the connection and add it.";
+  if (maybeError.kind === "not_r2_connection") return "Select a Cloudflare R2 connection before using the R2 dashboard.";
+  if (maybeError.kind === "connection_not_found") return "This saved R2 connection no longer exists. Refresh connections and select another one.";
+  if (maybeError.kind === "invalid_request") return maybeError.message ? String(maybeError.message) : "The R2 request is not valid. Check the form values and try again.";
+  if (maybeError.kind === "network") return maybeError.message ? `Could not reach Cloudflare: ${maybeError.message}` : "Could not reach Cloudflare. Check your network and try again.";
+  if (maybeError.kind === "cloudflare_api") return maybeError.message ? String(maybeError.message) : "Cloudflare rejected the request. Check your token permissions and bucket settings.";
+  if (maybeError.kind === "decode") return maybeError.message ? `Cloudflare returned an unexpected response: ${maybeError.message}` : "Cloudflare returned an unexpected response.";
+  if (maybeError.kind === "io") return maybeError.message ? String(maybeError.message) : "The local credential store or database could not be read.";
   return maybeError.message ? String(maybeError.message) : fallback;
 }
 
@@ -845,6 +845,13 @@ export function R2Page() {
               <input
                 value={confirmationText}
                 onChange={(event) => setConfirmationText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && !saving) closeConfirm();
+                  if (event.key === "Enter" && confirmationMatches && !saving) {
+                    event.preventDefault();
+                    void confirmDestructiveAction();
+                  }
+                }}
                 autoFocus
                 className="w-full rounded-lg bg-bg-base border border-border px-3 py-2 text-[length:var(--text-sm)] text-text-primary outline-none focus:border-border-focus focus:ring-2 focus:ring-ring"
               />
