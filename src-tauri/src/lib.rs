@@ -62,8 +62,6 @@ pub fn run() {
             app.manage(s3_manager);
             app.manage(s3_transfer_manager);
 
-            telemetry::init();
-
             Ok(())
         })
         .manage(SshManager::new())

@@ -53,7 +53,7 @@ impl SshManager {
         });
 
         let addr = format!("{}:{}", config.host, config.port);
-        let handler = SshClientHandler;
+        let handler = SshClientHandler::new(config.host.clone(), config.port);
         let mut handle = client::connect(russh_config, &addr, handler)
             .await
             .map_err(|e| SshError::ConnectionFailed(e.to_string()))?;
@@ -147,7 +147,7 @@ impl SshManager {
         });
 
         let addr = format!("{}:{}", config.host, config.port);
-        let handler = SshClientHandler;
+        let handler = SshClientHandler::new(config.host.clone(), config.port);
         let mut handle = client::connect(russh_config, &addr, handler)
             .await
             .map_err(|e| SshError::ConnectionFailed(e.to_string()))?;

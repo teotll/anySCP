@@ -641,11 +641,11 @@ impl HostDb {
              WHERE id = ?1",
             params![host_id],
         )?;
-        // Prune: keep only the 500 most-recent rows by autoincrement id.
+        // Prune: keep only the 50 most-recent rows by autoincrement id.
         conn.execute(
             "DELETE FROM connection_history
              WHERE id NOT IN (
-                 SELECT id FROM connection_history ORDER BY id DESC LIMIT 500
+                 SELECT id FROM connection_history ORDER BY id DESC LIMIT 50
              )",
             [],
         )?;

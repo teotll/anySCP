@@ -14,7 +14,7 @@ use super::transfer_manager::S3TransferManager;
 // ─── Connection ──────────────────────────────────────────────────────────────
 
 #[tauri::command]
-#[instrument(skip(s3_manager, db))]
+#[instrument(skip(s3_manager, db, access_key, secret_key))]
 pub async fn s3_connect(
     label: String,
     provider: String,
@@ -77,7 +77,7 @@ pub async fn s3_connect(
 
 /// Save an S3 connection to DB + vault without connecting.
 #[tauri::command]
-#[instrument(skip(db))]
+#[instrument(skip(db, access_key, secret_key))]
 pub async fn s3_save_connection(
     label: String,
     provider: String,
@@ -134,7 +134,7 @@ pub async fn s3_save_connection(
 /// Update an existing S3 connection. Credentials are optional — if omitted,
 /// the existing vault entry is kept.
 #[tauri::command]
-#[instrument(skip(db))]
+#[instrument(skip(db, access_key, secret_key))]
 pub async fn s3_update_connection(
     id: String,
     label: String,
