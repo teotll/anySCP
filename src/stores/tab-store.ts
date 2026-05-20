@@ -5,7 +5,7 @@ import { useS3Store } from "./s3-store";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type PageId = "hosts" | "snippets" | "port-forwarding" | "history" | "settings";
+export type PageId = "hosts" | "sftp" | "snippets" | "port-forwarding" | "history" | "settings";
 
 export type UnifiedTab =
   | { type: "terminal"; id: string; label: string }

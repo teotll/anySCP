@@ -21,6 +21,7 @@ import { useUiStore } from "../../stores/ui-store";
 
 const PAGE_ICONS: Record<PageId, React.ElementType> = {
   hosts: Monitor,
+  sftp: FolderOpen,
   snippets: Braces,
   "port-forwarding": Plug,
   history: History,

@@ -16,7 +16,7 @@ import { HostsDashboard, HostEditModal } from "../dashboard";
 import { NEW_HOST_ID } from "../dashboard/HostEditModal";
 import { SnippetsPage } from "../snippets";
 import { SnippetPalette } from "../snippets/SnippetPalette";
-import { ExplorerPage } from "../sftp";
+import { ExplorerPage, SftpPage } from "../sftp";
 import { SettingsPage } from "../settings";
 import { PortForwardingPage } from "../port-forwarding";
 import { HistoryPage } from "../history";
@@ -271,6 +271,8 @@ export function AppShell() {
                   <ExplorerPage s3SessionId={activeTab.id} />
                 ) : activePageType === "hosts" ? (
                   <HostsDashboard />
+                ) : activePageType === "sftp" ? (
+                  <SftpPage />
                 ) : activePageType === "snippets" ? (
                   <SnippetsPage />
                 ) : activePageType === "port-forwarding" ? (

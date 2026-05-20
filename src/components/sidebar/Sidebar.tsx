@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from "react";
-import { Monitor, Braces, Settings, ArrowUpDown, Plug, History, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Monitor, Braces, Settings, ArrowUpDown, Plug, History, ChevronsLeft, ChevronsRight, FolderOpen } from "lucide-react";
 import { useUiStore } from "../../stores/ui-store";
 import { useTabStore, type PageId } from "../../stores/tab-store";
 import { useTransferStore } from "../../stores/transfer-store";
@@ -18,6 +18,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "hosts",            icon: Monitor,        label: "Hosts",     page: "hosts" },
+  { id: "sftp",             icon: FolderOpen,     label: "Explorer",  page: "sftp" },
   { id: "snippets",         icon: Braces,         label: "Snippets",  page: "snippets" },
   { id: "port-forwarding",  icon: Plug,           label: "Tunnels",   page: "port-forwarding" },
   { id: "history",          icon: History,        label: "History",   page: "history" },
