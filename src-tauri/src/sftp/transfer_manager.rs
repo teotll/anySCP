@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -295,7 +295,7 @@ impl TransferManager {
         &self,
         sftp_session_id: String,
         remote_paths: Vec<String>,
-        local_dir: PathBuf,
+        local_dir: Option<PathBuf>,
         local_path: Option<PathBuf>,
     ) -> Result<Vec<String>, SftpError> {
         self.ensure_worker_spawned();
@@ -305,11 +305,7 @@ impl TransferManager {
         };
 
         let mut ids = Vec::with_capacity(remote_paths.len());
-        let explicit_file_destination = if remote_paths.len() == 1 {
-            local_path
-        } else {
-            None
-        };
+        let explicit_file_destination = explicit_file_destination(remote_paths.len(), local_path);
 
         for remote_path in remote_paths {
             let name = std::path::Path::new(&remote_path)
@@ -330,7 +326,7 @@ impl TransferManager {
 
             let (kind, total_bytes, files_total) =
                 if attrs.file_type() == russh_sftp::protocol::FileType::Dir {
-                    let local_dest = local_dir.join(&name);
+                    let local_dest = required_download_dir(local_dir.as_deref())?.join(&name);
                     let (bytes, count) = {
                         let sftp = sftp_arc.lock().await;
                         walk_remote_dir_stats(&sftp, &remote_path).await
@@ -345,10 +341,10 @@ impl TransferManager {
                     )
                 } else {
                     let local_dest = download_file_destination(
-                        local_dir.clone(),
+                        local_dir.as_deref(),
                         &name,
                         explicit_file_destination.clone(),
-                    );
+                    )?;
                     let size = attrs.size.unwrap_or(0);
                     (
                         TransferJobKind::DownloadFile {
@@ -499,11 +495,28 @@ impl TransferManager {
 }
 
 fn download_file_destination(
-    local_dir: PathBuf,
+    local_dir: Option<&Path>,
     remote_name: &str,
     explicit_local_path: Option<PathBuf>,
-) -> PathBuf {
-    explicit_local_path.unwrap_or_else(|| local_dir.join(remote_name))
+) -> Result<PathBuf, SftpError> {
+    match explicit_local_path {
+        Some(path) => Ok(path),
+        None => Ok(required_download_dir(local_dir)?.join(remote_name)),
+    }
+}
+
+fn explicit_file_destination(remote_path_count: usize, local_path: Option<PathBuf>) -> Option<PathBuf> {
+    if remote_path_count == 1 {
+        local_path
+    } else {
+        None
+    }
+}
+
+fn required_download_dir(local_dir: Option<&Path>) -> Result<&Path, SftpError> {
+    local_dir.ok_or_else(|| {
+        SftpError::LocalIoError("download destination directory is required".to_string())
+    })
 }
 
 // ─── Remote directory statistics ─────────────────────────────────────────────
@@ -1304,17 +1317,28 @@ mod tests {
     #[test]
     fn download_file_destination_uses_explicit_save_path() {
         let dest = download_file_destination(
-            PathBuf::from("/tmp/downloads"),
+            Some(Path::new("/tmp/downloads")),
             "remote.txt",
             Some(PathBuf::from("/tmp/downloads/renamed.txt")),
-        );
+        )
+        .unwrap();
 
         assert_eq!(dest, PathBuf::from("/tmp/downloads/renamed.txt"));
     }
 
     #[test]
     fn download_file_destination_falls_back_to_remote_name() {
-        let dest = download_file_destination(PathBuf::from("/tmp/downloads"), "remote.txt", None);
+        let dest = download_file_destination(Some(Path::new("/tmp/downloads")), "remote.txt", None)
+            .unwrap();
+
+        assert_eq!(dest, PathBuf::from("/tmp/downloads/remote.txt"));
+    }
+
+    #[test]
+    fn explicit_file_destination_is_ignored_for_multiple_remote_paths() {
+        let explicit = explicit_file_destination(2, Some(PathBuf::from("/tmp/downloads/renamed.txt")));
+        let dest = download_file_destination(Some(Path::new("/tmp/downloads")), "remote.txt", explicit)
+            .unwrap();
 
         assert_eq!(dest, PathBuf::from("/tmp/downloads/remote.txt"));
     }

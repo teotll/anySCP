@@ -183,7 +183,6 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
         const savePath = await save({ defaultPath: entry.name, title: `Save "${entry.name}" as…` });
         if (savePath) {
           localPath = savePath;
-          localDir = "";
         }
       }
 
@@ -193,7 +192,7 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
       await invoke("sftp_enqueue_download", {
         sftpSessionId,
         remotePaths: [entry.id],
-        localDir,
+        ...(localDir ? { localDir } : {}),
         localPath,
       });
     } catch (err) {
@@ -223,7 +222,6 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
         sftpSessionId,
         remotePaths: entries.map((entry) => entry.id),
         localDir,
-        localPath: null,
       });
     } catch (err) {
       console.error("Download enqueue failed:", err);

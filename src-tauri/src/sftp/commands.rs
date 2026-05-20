@@ -1134,7 +1134,7 @@ pub async fn sftp_enqueue_upload(
 pub async fn sftp_enqueue_download(
     sftp_session_id: String,
     remote_paths: Vec<String>,
-    local_dir: String,
+    local_dir: Option<String>,
     local_path: Option<String>,
     transfer_manager: State<'_, Arc<TransferManager>>,
 ) -> Result<Vec<String>, SftpError> {
@@ -1143,7 +1143,7 @@ pub async fn sftp_enqueue_download(
         .enqueue_download(
             sftp_session_id,
             remote_paths,
-            PathBuf::from(local_dir),
+            local_dir.map(PathBuf::from),
             local_path.map(PathBuf::from),
         )
         .await;
