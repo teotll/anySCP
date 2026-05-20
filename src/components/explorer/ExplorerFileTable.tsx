@@ -63,7 +63,7 @@ interface ContextMenuState {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export function buildDownloadSelectionLabel(
+function buildDownloadSelectionLabel(
   entries: ExplorerEntry[],
   providerType: FileSystemProvider["type"],
 ): string | null {
@@ -434,7 +434,7 @@ export function ExplorerFileTable({
           icon: Download,
           onClick: () => {
             if (onDownloadEntries) onDownloadEntries(selectedEntries);
-            else onDownload(selectedEntries[0]);
+            else selectedEntries.forEach(onDownload);
           },
         });
       }
