@@ -2,6 +2,7 @@ mod ai;
 mod db;
 mod import;
 mod portforward;
+mod r2;
 mod s3;
 mod sftp;
 mod snippets;
@@ -152,6 +153,24 @@ pub fn run() {
             s3::commands::s3_list_transfers,
             s3::commands::s3_clear_finished_transfers,
             s3::commands::s3_edit_in_vscode,
+            // Cloudflare R2 management
+            r2::r2_list_buckets,
+            r2::r2_get_bucket,
+            r2::r2_create_bucket,
+            r2::r2_patch_bucket,
+            r2::r2_delete_bucket,
+            r2::r2_get_cors,
+            r2::r2_put_cors,
+            r2::r2_delete_cors,
+            r2::r2_get_lifecycle,
+            r2::r2_put_lifecycle,
+            r2::r2_get_managed_domain,
+            r2::r2_update_managed_domain,
+            r2::r2_list_custom_domains,
+            r2::r2_attach_custom_domain,
+            r2::r2_update_custom_domain,
+            r2::r2_delete_custom_domain,
+            r2::r2_get_metrics,
             // SSH config import
             import::commands::import_parse_ssh_config,
             import::commands::import_save_ssh_hosts,

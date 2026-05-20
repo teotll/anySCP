@@ -22,6 +22,7 @@ import { useUiStore } from "../../stores/ui-store";
 const PAGE_ICONS: Record<PageId, React.ElementType> = {
   hosts: Monitor,
   explorer: FolderOpen,
+  r2: Cloud,
   snippets: Braces,
   "port-forwarding": Plug,
   history: History,

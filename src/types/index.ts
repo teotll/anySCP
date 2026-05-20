@@ -42,6 +42,14 @@ export type {
 export { S3_PROVIDERS } from "./s3";
 
 export type {
+  R2Bucket,
+  R2CreateBucketRequest,
+  R2PatchBucketRequest,
+  R2AttachCustomDomainRequest,
+  R2Json,
+} from "./r2";
+
+export type {
   PortForwardRule,
   TunnelStatus,
 } from "./port-forwarding";

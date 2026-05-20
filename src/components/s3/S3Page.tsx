@@ -60,9 +60,12 @@ export function S3Page() {
         accessKey: "", // Will need credentials on reconnect
         secretKey: "",
         pathStyle: conn.path_style,
+        groupId: conn.group_id,
         color: conn.color,
         environment: conn.environment,
         notes: conn.notes,
+        r2AccountId: conn.r2_account_id,
+        r2ApiToken: null,
       });
       await loadSavedConnections();
     } catch {

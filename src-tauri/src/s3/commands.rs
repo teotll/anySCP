@@ -14,7 +14,7 @@ use super::transfer_manager::S3TransferManager;
 // ─── Connection ──────────────────────────────────────────────────────────────
 
 #[tauri::command]
-#[instrument(skip(s3_manager, db, access_key, secret_key))]
+#[instrument(skip(s3_manager, db, access_key, secret_key, r2_api_token))]
 pub async fn s3_connect(
     label: String,
     provider: String,
@@ -28,6 +28,8 @@ pub async fn s3_connect(
     color: Option<String>,
     environment: Option<String>,
     notes: Option<String>,
+    r2_account_id: Option<String>,
+    r2_api_token: Option<String>,
     s3_manager: State<'_, Arc<S3Manager>>,
     db: State<'_, Arc<HostDb>>,
 ) -> Result<String, S3Error> {
@@ -57,8 +59,9 @@ pub async fn s3_connect(
     let col = color.clone();
     let env = environment.clone();
     let nts = notes.clone();
+    let r2_account = r2_account_id.clone();
     let _ = tokio::task::spawn_blocking(move || {
-        db.save_s3_connection(&sid, &lbl, &prov, &reg, ep.as_deref(), Some(&bkt), ps, gid.as_deref(), col.as_deref(), env.as_deref(), nts.as_deref())
+        db.save_s3_connection(&sid, &lbl, &prov, &reg, ep.as_deref(), Some(&bkt), ps, gid.as_deref(), col.as_deref(), env.as_deref(), nts.as_deref(), r2_account.as_deref())
     }).await;
 
     // Save credentials to vault
@@ -67,6 +70,12 @@ pub async fn s3_connect(
     let _ = tokio::task::spawn_blocking(move || {
         crate::vault::save_credential(&vault_key, &cred)
     }).await;
+
+    if provider == "r2" {
+        if let Some(token) = r2_api_token.filter(|token| !token.trim().is_empty()) {
+            save_r2_admin_token(session_id.clone(), token).await?;
+        }
+    }
 
     crate::telemetry::capture("s3_connected", serde_json::json!({
         "provider": provider,
@@ -77,7 +86,7 @@ pub async fn s3_connect(
 
 /// Save an S3 connection to DB + vault without connecting.
 #[tauri::command]
-#[instrument(skip(db, access_key, secret_key))]
+#[instrument(skip(db, access_key, secret_key, r2_api_token))]
 pub async fn s3_save_connection(
     label: String,
     provider: String,
@@ -91,6 +100,8 @@ pub async fn s3_save_connection(
     color: Option<String>,
     environment: Option<String>,
     notes: Option<String>,
+    r2_account_id: Option<String>,
+    r2_api_token: Option<String>,
     db: State<'_, Arc<HostDb>>,
 ) -> Result<String, S3Error> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -106,12 +117,14 @@ pub async fn s3_save_connection(
     let col = color.clone();
     let env = environment.clone();
     let nts = notes.clone();
+    let r2_account = r2_account_id.clone();
 
     tokio::task::spawn_blocking(move || {
         db.save_s3_connection(
             &sid, &lbl, &prov, &reg, ep.as_deref(),
             if bkt.is_empty() { None } else { Some(&bkt) },
             path_style, gid.as_deref(), col.as_deref(), env.as_deref(), nts.as_deref(),
+            r2_account.as_deref(),
         )
     })
     .await
@@ -127,6 +140,12 @@ pub async fn s3_save_connection(
         crate::vault::save_credential(&vault_key, &cred)
     }).await;
 
+    if provider == "r2" {
+        if let Some(token) = r2_api_token.filter(|token| !token.trim().is_empty()) {
+            save_r2_admin_token(id.clone(), token).await?;
+        }
+    }
+
     crate::telemetry::capture("s3_connection_saved", serde_json::json!({ "provider": provider }));
     Ok(id)
 }
@@ -134,7 +153,7 @@ pub async fn s3_save_connection(
 /// Update an existing S3 connection. Credentials are optional — if omitted,
 /// the existing vault entry is kept.
 #[tauri::command]
-#[instrument(skip(db, access_key, secret_key))]
+#[instrument(skip(db, access_key, secret_key, r2_api_token))]
 pub async fn s3_update_connection(
     id: String,
     label: String,
@@ -147,6 +166,8 @@ pub async fn s3_update_connection(
     color: Option<String>,
     environment: Option<String>,
     notes: Option<String>,
+    r2_account_id: Option<String>,
+    r2_api_token: Option<String>,
     access_key: Option<String>,
     secret_key: Option<String>,
     db: State<'_, Arc<HostDb>>,
@@ -162,12 +183,14 @@ pub async fn s3_update_connection(
     let col = color.clone();
     let env = environment.clone();
     let nts = notes.clone();
+    let r2_account = r2_account_id.clone();
 
     tokio::task::spawn_blocking(move || {
         db.save_s3_connection(
             &sid, &lbl, &prov, &reg, ep.as_deref(),
             if bkt.is_empty() { None } else { Some(&bkt) },
             path_style, gid.as_deref(), col.as_deref(), env.as_deref(), nts.as_deref(),
+            r2_account.as_deref(),
         )
     })
     .await
@@ -184,6 +207,12 @@ pub async fn s3_update_connection(
             let _ = tokio::task::spawn_blocking(move || {
                 crate::vault::save_credential(&vault_key, &cred)
             }).await;
+        }
+    }
+
+    if provider == "r2" {
+        if let Some(token) = r2_api_token.filter(|token| !token.trim().is_empty()) {
+            save_r2_admin_token(id.clone(), token).await?;
         }
     }
 
@@ -221,8 +250,26 @@ pub async fn s3_delete_connection(
         crate::vault::delete_credential(&vault_key)
     }).await;
 
+    let vault_key = r2_admin_vault_key(&id);
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::vault::delete_credential(&vault_key)
+    }).await;
+
     crate::telemetry::capture("s3_connection_deleted", serde_json::json!({}));
     Ok(())
+}
+
+pub(crate) fn r2_admin_vault_key(connection_id: &str) -> String {
+    format!("r2-admin:{connection_id}")
+}
+
+async fn save_r2_admin_token(connection_id: String, token: String) -> Result<(), S3Error> {
+    let vault_key = r2_admin_vault_key(&connection_id);
+    let cred = crate::vault::StoredCredential::Password { password: token };
+    tokio::task::spawn_blocking(move || crate::vault::save_credential(&vault_key, &cred))
+        .await
+        .map_err(|e| S3Error::IoError(format!("task panicked: {e}")))?
+        .map_err(|e| S3Error::CredentialError(e.to_string()))
 }
 
 #[tauri::command]

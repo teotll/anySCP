@@ -33,6 +33,8 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
   const [region, setRegion] = useState(editConnection?.region ?? "us-east-1");
   const [endpoint, setEndpoint] = useState(editConnection?.endpoint ?? "");
   const [bucket, setBucket] = useState(editConnection?.bucket ?? "");
+  const [r2AccountId, setR2AccountId] = useState(editConnection?.r2_account_id ?? "");
+  const [r2ApiToken, setR2ApiToken] = useState("");
   const [pathStyle, setPathStyle] = useState(editConnection?.path_style ?? false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +64,15 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
     return () => document.removeEventListener("keydown", handler);
   }, [onClose, connecting]);
 
+  useEffect(() => {
+    if (provider !== "r2") return;
+    const trimmedAccountId = r2AccountId.trim();
+    if (!trimmedAccountId) return;
+    if (!endpoint || endpoint.includes("{account_id}")) {
+      setEndpoint(`https://${trimmedAccountId}.r2.cloudflarestorage.com`);
+    }
+  }, [provider, r2AccountId, endpoint]);
+
   const [groupId, setGroupId] = useState(editConnection?.group_id ?? "");
   const [color, setColor] = useState<string | null>(editConnection?.color ?? null);
   const [environment, setEnvironment] = useState(editConnection?.environment ?? "");
@@ -72,13 +83,17 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
   useEffect(() => { void loadGroups(); }, [loadGroups]);
   const [saving, setSaving] = useState(false);
 
-  // In edit mode, credentials are optional (leave blank to keep existing)
-  const canSubmit = isEdit
-    ? region.trim() && bucket.trim()
-    : accessKey.trim() && secretKey.trim() && region.trim() && bucket.trim();
+  // In edit mode, S3 credentials and R2 API tokens are optional (leave blank to keep existing).
+  const isR2 = provider === "r2";
+  const hasS3Credentials = Boolean(accessKey.trim() && secretKey.trim());
+  const hasR2Admin = !isR2 || Boolean(r2AccountId.trim() && (isEdit || r2ApiToken.trim()));
+  const canSave = Boolean(isEdit
+    ? region.trim() && (isR2 || bucket.trim()) && hasR2Admin
+    : region.trim() && (isR2 ? hasR2Admin : hasS3Credentials && bucket.trim()));
+  const canConnect = Boolean(region.trim() && bucket.trim() && hasS3Credentials);
 
   const handleSave = async () => {
-    if (!canSubmit) return;
+    if (!canSave) return;
     setSaving(true);
     setError(null);
     try {
@@ -100,6 +115,8 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
           color,
           environment: environment || null,
           notes: notes.trim() || null,
+          r2AccountId: isR2 ? r2AccountId.trim() || null : null,
+          r2ApiToken: isR2 ? r2ApiToken.trim() || null : null,
           accessKey: hasNewCreds ? accessKey.trim() : null,
           secretKey: hasNewCreds ? secretKey.trim() : null,
         });
@@ -117,6 +134,8 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
           color,
           environment: environment || null,
           notes: notes.trim() || null,
+          r2AccountId: isR2 ? r2AccountId.trim() || null : null,
+          r2ApiToken: isR2 ? r2ApiToken.trim() || null : null,
         });
       }
       onClose();
@@ -131,7 +150,7 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
   };
 
   const handleConnect = async () => {
-    if (!canSubmit) return;
+    if (!canConnect) return;
     setConnecting(true);
     setError(null);
 
@@ -147,6 +166,11 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
         secretKey: secretKey.trim(),
         pathStyle,
         groupId: groupId || null,
+        color,
+        environment: environment || null,
+        notes: notes.trim() || null,
+        r2AccountId: isR2 ? r2AccountId.trim() || null : null,
+        r2ApiToken: isR2 ? r2ApiToken.trim() || null : null,
       });
 
       useS3Store.getState().openSession(sessionId, label.trim() || `${provider}/${bucket.trim()}`);
@@ -222,7 +246,7 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
 
           {isEdit && (
             <p className="text-[length:var(--text-2xs)] text-text-muted -mb-1">
-              Leave blank to keep existing credentials
+              Leave blank to keep existing credentials and API tokens
             </p>
           )}
 
@@ -237,6 +261,38 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
               autoFocus={!isEdit}
             />
           </div>
+
+          {isR2 && (
+            <>
+              <SectionHeader>R2 Admin</SectionHeader>
+
+              <div>
+                <label className={labelClass}>Cloudflare Account ID</label>
+                <input
+                  type="text"
+                  value={r2AccountId}
+                  onChange={(e) => setR2AccountId(e.target.value)}
+                  placeholder="0123456789abcdef0123456789abcdef"
+                  className={`${inputClass} font-mono`}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass}>Cloudflare API Token</label>
+                <input
+                  type="password"
+                  value={r2ApiToken}
+                  onChange={(e) => setR2ApiToken(e.target.value)}
+                  placeholder={isEdit ? "••••••••••••" : "Workers R2 Storage Read/Write token"}
+                  className={`${inputClass} font-mono`}
+                />
+              </div>
+
+              <p className="text-[length:var(--text-2xs)] text-text-muted -mt-1">
+                Required for bucket settings, CORS, lifecycle, domains, and R2 account metrics.
+              </p>
+            </>
+          )}
 
           <div>
             <label className={labelClass}>Secret Access Key</label>
@@ -377,7 +433,7 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
           {isEdit ? (
             <button
               onClick={() => void handleSave()}
-              disabled={saving || !canSubmit}
+              disabled={saving || !canSave}
               className="px-4 py-2 text-[length:var(--text-sm)] font-medium text-text-inverse bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {saving ? "Saving…" : "Save Changes"}
@@ -386,14 +442,14 @@ export function S3ConnectDialog({ onClose, editConnection }: S3ConnectDialogProp
             <>
               <button
                 onClick={() => void handleSave()}
-                disabled={saving || connecting || !canSubmit}
+                disabled={saving || connecting || !canSave}
                 className="px-4 py-2 text-[length:var(--text-sm)] font-medium text-text-secondary hover:text-text-primary bg-bg-subtle hover:bg-bg-muted disabled:opacity-50 rounded-lg border border-border transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {saving ? "Saving…" : "Save"}
               </button>
               <button
                 onClick={() => void handleConnect()}
-                disabled={connecting || saving || !canSubmit}
+                disabled={connecting || saving || !canConnect}
                 className="px-4 py-2 text-[length:var(--text-sm)] font-medium text-text-inverse bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {connecting ? "Connecting…" : "Connect"}

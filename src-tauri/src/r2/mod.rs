@@ -1,0 +1,723 @@
+use std::sync::Arc;
+
+use reqwest::{Client, Method};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use tauri::State;
+use tracing::instrument;
+
+use crate::db::HostDb;
+
+const CLOUDFLARE_API_BASE: &str = "https://api.cloudflare.com/client/v4";
+
+#[derive(Debug, thiserror::Error)]
+pub enum R2Error {
+    #[error("R2 connection not found: {0}")]
+    ConnectionNotFound(String),
+    #[error("Connection is not a Cloudflare R2 connection")]
+    NotR2Connection,
+    #[error("Missing Cloudflare account ID for this R2 connection")]
+    MissingAccountId,
+    #[error("Missing Cloudflare API token for this R2 connection")]
+    MissingApiToken,
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
+    #[error("Cloudflare API error: {0}")]
+    Cloudflare(String),
+    #[error("I/O error: {0}")]
+    Io(String),
+}
+
+impl Serialize for R2Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("R2Error", 2)?;
+        let kind = match self {
+            R2Error::ConnectionNotFound(_) => "connection_not_found",
+            R2Error::NotR2Connection => "not_r2_connection",
+            R2Error::MissingAccountId => "missing_account_id",
+            R2Error::MissingApiToken => "missing_api_token",
+            R2Error::InvalidRequest(_) => "invalid_request",
+            R2Error::Cloudflare(_) => "cloudflare",
+            R2Error::Io(_) => "io",
+        };
+        state.serialize_field("kind", kind)?;
+        state.serialize_field("message", &self.to_string())?;
+        state.end()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct R2Bucket {
+    pub name: Option<String>,
+    pub creation_date: Option<String>,
+    pub jurisdiction: Option<String>,
+    pub location: Option<String>,
+    pub storage_class: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct R2CreateBucketRequest {
+    pub name: String,
+    pub jurisdiction: Option<String>,
+    pub location_hint: Option<String>,
+    pub storage_class: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct R2PatchBucketRequest {
+    pub storage_class: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct R2AttachCustomDomainRequest {
+    pub domain: String,
+    pub zone_id: String,
+    pub enabled: Option<bool>,
+    pub min_tls: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CloudflareEnvelope<T> {
+    success: bool,
+    #[serde(default)]
+    errors: Vec<Value>,
+    #[serde(default)]
+    messages: Vec<Value>,
+    result: Option<T>,
+}
+
+#[derive(Debug)]
+struct R2Auth {
+    account_id: String,
+    api_token: String,
+}
+
+#[derive(Clone)]
+struct R2Client {
+    http: Client,
+    account_id: String,
+    api_token: String,
+}
+
+impl R2Client {
+    fn new(auth: R2Auth) -> Self {
+        Self {
+            http: Client::new(),
+            account_id: auth.account_id,
+            api_token: auth.api_token,
+        }
+    }
+
+    async fn request<T>(
+        &self,
+        method: Method,
+        path: &str,
+        jurisdiction: Option<&str>,
+        body: Option<Value>,
+    ) -> Result<T, R2Error>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let url = format!("{CLOUDFLARE_API_BASE}/accounts/{}{}", self.account_id, path);
+        let mut request = self.http.request(method, url).bearer_auth(&self.api_token);
+
+        if let Some(jurisdiction) = jurisdiction.filter(|value| !value.trim().is_empty()) {
+            request = request.header("cf-r2-jurisdiction", jurisdiction);
+        }
+
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|e| R2Error::Cloudflare(e.to_string()))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| R2Error::Cloudflare(e.to_string()))?;
+
+        let envelope: CloudflareEnvelope<T> = serde_json::from_str(&text)
+            .map_err(|e| R2Error::Cloudflare(format!("HTTP {status}: invalid response: {e}")))?;
+
+        if !status.is_success() || !envelope.success {
+            return Err(R2Error::Cloudflare(cloudflare_message(&envelope)));
+        }
+
+        envelope.result.ok_or_else(|| {
+            R2Error::Cloudflare("Cloudflare response did not include a result".to_string())
+        })
+    }
+
+    async fn request_value(
+        &self,
+        method: Method,
+        path: &str,
+        jurisdiction: Option<&str>,
+        body: Option<Value>,
+    ) -> Result<Value, R2Error> {
+        let url = format!("{CLOUDFLARE_API_BASE}/accounts/{}{}", self.account_id, path);
+        let mut request = self.http.request(method, url).bearer_auth(&self.api_token);
+
+        if let Some(jurisdiction) = jurisdiction.filter(|value| !value.trim().is_empty()) {
+            request = request.header("cf-r2-jurisdiction", jurisdiction);
+        }
+
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|e| R2Error::Cloudflare(e.to_string()))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| R2Error::Cloudflare(e.to_string()))?;
+
+        let envelope: CloudflareEnvelope<Value> = serde_json::from_str(&text)
+            .map_err(|e| R2Error::Cloudflare(format!("HTTP {status}: invalid response: {e}")))?;
+
+        if !status.is_success() || !envelope.success {
+            return Err(R2Error::Cloudflare(cloudflare_message(&envelope)));
+        }
+
+        Ok(envelope.result.unwrap_or(Value::Null))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct BucketListResponse {
+    buckets: Option<Vec<R2Bucket>>,
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_list_buckets(
+    connection_id: String,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Vec<R2Bucket>, R2Error> {
+    let client = client_for_connection(connection_id, db).await?;
+    let result: BucketListResponse = client
+        .request(Method::GET, "/r2/buckets", None, None)
+        .await?;
+    Ok(result.buckets.unwrap_or_default())
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_get_bucket(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<R2Bucket, R2Error> {
+    validate_path_segment(&bucket_name, "bucket name")?;
+    let client = client_for_connection(connection_id, db).await?;
+    client
+        .request(
+            Method::GET,
+            &format!("/r2/buckets/{bucket_name}"),
+            jurisdiction.as_deref(),
+            None,
+        )
+        .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_create_bucket(
+    connection_id: String,
+    request: R2CreateBucketRequest,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<R2Bucket, R2Error> {
+    validate_path_segment(&request.name, "bucket name")?;
+    let client = client_for_connection(connection_id, db).await?;
+    let mut body = json!({ "name": request.name });
+    if let Some(value) = request
+        .location_hint
+        .filter(|value| !value.trim().is_empty())
+    {
+        body["locationHint"] = json!(value);
+    }
+    if let Some(value) = request
+        .storage_class
+        .filter(|value| !value.trim().is_empty())
+    {
+        body["storageClass"] = json!(value);
+    }
+
+    client
+        .request(
+            Method::POST,
+            "/r2/buckets",
+            request.jurisdiction.as_deref(),
+            Some(body),
+        )
+        .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_patch_bucket(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    request: R2PatchBucketRequest,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<R2Bucket, R2Error> {
+    validate_path_segment(&bucket_name, "bucket name")?;
+    let client = client_for_connection(connection_id, db).await?;
+    let mut body = Value::Object(Default::default());
+    if let Some(value) = request
+        .storage_class
+        .filter(|value| !value.trim().is_empty())
+    {
+        body["storageClass"] = json!(value);
+    }
+
+    client
+        .request(
+            Method::PATCH,
+            &format!("/r2/buckets/{bucket_name}"),
+            jurisdiction.as_deref(),
+            Some(body),
+        )
+        .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_delete_bucket(
+    connection_id: String,
+    bucket_name: String,
+    confirm_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    validate_path_segment(&bucket_name, "bucket name")?;
+    if bucket_name != confirm_name {
+        return Err(R2Error::InvalidRequest(
+            "confirmation does not match bucket name".to_string(),
+        ));
+    }
+
+    let client = client_for_connection(connection_id, db).await?;
+    client
+        .request_value(
+            Method::DELETE,
+            &format!("/r2/buckets/{bucket_name}"),
+            jurisdiction.as_deref(),
+            None,
+        )
+        .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_get_cors(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::GET,
+        "/cors",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db, policy))]
+pub async fn r2_put_cors(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    policy: Value,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::PUT,
+        "/cors",
+        Some(policy),
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_delete_cors(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::DELETE,
+        "/cors",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_get_lifecycle(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::GET,
+        "/lifecycle",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db, policy))]
+pub async fn r2_put_lifecycle(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    policy: Value,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::PUT,
+        "/lifecycle",
+        Some(policy),
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_get_managed_domain(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::GET,
+        "/domains/managed",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_update_managed_domain(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    enabled: bool,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::PUT,
+        "/domains/managed",
+        Some(json!({ "enabled": enabled })),
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_list_custom_domains(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::GET,
+        "/domains/custom",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_attach_custom_domain(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    request: R2AttachCustomDomainRequest,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    validate_path_segment(&request.domain, "domain")?;
+    let mut body = json!({
+        "domain": request.domain,
+        "zoneId": request.zone_id,
+    });
+    if let Some(enabled) = request.enabled {
+        body["enabled"] = json!(enabled);
+    }
+    if let Some(min_tls) = request.min_tls.filter(|value| !value.trim().is_empty()) {
+        body["minTLS"] = json!(min_tls);
+    }
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::POST,
+        "/domains/custom",
+        Some(body),
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db, settings))]
+pub async fn r2_update_custom_domain(
+    connection_id: String,
+    bucket_name: String,
+    domain: String,
+    jurisdiction: Option<String>,
+    settings: Value,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    validate_path_segment(&domain, "domain")?;
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::PUT,
+        &format!("/domains/custom/{domain}"),
+        Some(settings),
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_delete_custom_domain(
+    connection_id: String,
+    bucket_name: String,
+    domain: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    validate_path_segment(&domain, "domain")?;
+    bucket_json_command(
+        connection_id,
+        bucket_name,
+        jurisdiction,
+        db,
+        Method::DELETE,
+        &format!("/domains/custom/{domain}"),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+#[instrument(skip(db))]
+pub async fn r2_get_metrics(
+    connection_id: String,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<Value, R2Error> {
+    let client = client_for_connection(connection_id, db).await?;
+    client
+        .request_value(Method::GET, "/r2/metrics", None, None)
+        .await
+}
+
+async fn bucket_json_command(
+    connection_id: String,
+    bucket_name: String,
+    jurisdiction: Option<String>,
+    db: State<'_, Arc<HostDb>>,
+    method: Method,
+    suffix: &str,
+    body: Option<Value>,
+) -> Result<Value, R2Error> {
+    validate_path_segment(&bucket_name, "bucket name")?;
+    let client = client_for_connection(connection_id, db).await?;
+    client
+        .request_value(
+            method,
+            &format!("/r2/buckets/{bucket_name}{suffix}"),
+            jurisdiction.as_deref(),
+            body,
+        )
+        .await
+}
+
+async fn client_for_connection(
+    connection_id: String,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<R2Client, R2Error> {
+    let auth = load_r2_auth(connection_id, db).await?;
+    Ok(R2Client::new(auth))
+}
+
+async fn load_r2_auth(
+    connection_id: String,
+    db: State<'_, Arc<HostDb>>,
+) -> Result<R2Auth, R2Error> {
+    let db = Arc::clone(&db);
+    let id = connection_id.clone();
+    let connections = tokio::task::spawn_blocking(move || db.list_s3_connections())
+        .await
+        .map_err(|e| R2Error::Io(format!("task panicked: {e}")))?
+        .map_err(|e| R2Error::Io(e.to_string()))?;
+
+    let connection = connections
+        .into_iter()
+        .find(|connection| connection.id == id)
+        .ok_or_else(|| R2Error::ConnectionNotFound(connection_id.clone()))?;
+
+    if connection.provider != "r2" {
+        return Err(R2Error::NotR2Connection);
+    }
+
+    let account_id = connection
+        .r2_account_id
+        .filter(|value| !value.trim().is_empty())
+        .ok_or(R2Error::MissingAccountId)?;
+    validate_account_id(&account_id)?;
+
+    let vault_key = crate::s3::commands::r2_admin_vault_key(&connection_id);
+    let credential = tokio::task::spawn_blocking(move || crate::vault::get_credential(&vault_key))
+        .await
+        .map_err(|e| R2Error::Io(format!("task panicked: {e}")))?
+        .map_err(|_| R2Error::MissingApiToken)?;
+
+    let api_token = match credential {
+        crate::vault::StoredCredential::Password { password } if !password.trim().is_empty() => {
+            password
+        }
+        _ => return Err(R2Error::MissingApiToken),
+    };
+
+    Ok(R2Auth {
+        account_id,
+        api_token,
+    })
+}
+
+fn validate_path_segment(value: &str, label: &str) -> Result<(), R2Error> {
+    if value.trim().is_empty() {
+        return Err(R2Error::InvalidRequest(format!("{label} is required")));
+    }
+    if value.contains('/') || value.contains('\\') || value.contains('?') || value.contains('#') {
+        return Err(R2Error::InvalidRequest(format!(
+            "{label} cannot contain path separators or query fragments"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_account_id(account_id: &str) -> Result<(), R2Error> {
+    if account_id.len() != 32 || !account_id.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(R2Error::InvalidRequest(
+            "Cloudflare account ID must be a 32-character hex string".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn cloudflare_message<T>(envelope: &CloudflareEnvelope<T>) -> String {
+    let mut parts: Vec<String> = envelope
+        .errors
+        .iter()
+        .chain(envelope.messages.iter())
+        .filter_map(message_from_value)
+        .collect();
+    if parts.is_empty() {
+        parts.push("request failed".to_string());
+    }
+    parts.join("; ")
+}
+
+fn message_from_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(message) if !message.is_empty() => Some(message.clone()),
+        Value::Object(map) => map
+            .get("message")
+            .and_then(Value::as_str)
+            .filter(|message| !message.is_empty())
+            .map(|message| match map.get("code").and_then(Value::as_i64) {
+                Some(code) => format!("{code}: {message}"),
+                None => message.to_string(),
+            }),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloudflare_message_includes_error_code_and_text() {
+        let envelope: CloudflareEnvelope<Value> = CloudflareEnvelope {
+            success: false,
+            errors: vec![json!({ "code": 10013, "message": "Invalid API token" })],
+            messages: Vec::new(),
+            result: None,
+        };
+
+        assert_eq!(cloudflare_message(&envelope), "10013: Invalid API token");
+    }
+
+    #[test]
+    fn rejects_unsafe_bucket_segments() {
+        let err = validate_path_segment("bucket/name", "bucket name").expect_err("slash is unsafe");
+        assert!(matches!(err, R2Error::InvalidRequest(_)));
+    }
+}

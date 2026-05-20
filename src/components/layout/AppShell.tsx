@@ -17,6 +17,7 @@ import { NEW_HOST_ID } from "../dashboard/HostEditModal";
 import { SnippetsPage } from "../snippets";
 import { SnippetPalette } from "../snippets/SnippetPalette";
 import { ExplorerPage, SftpPage } from "../sftp";
+import { R2Page } from "../r2";
 import { SettingsPage } from "../settings";
 import { PortForwardingPage } from "../port-forwarding";
 import { HistoryPage } from "../history";
@@ -273,6 +274,8 @@ export function AppShell() {
                   <HostsDashboard />
                 ) : activePageType === "explorer" ? (
                   <SftpPage />
+                ) : activePageType === "r2" ? (
+                  <R2Page />
                 ) : activePageType === "snippets" ? (
                   <SnippetsPage />
                 ) : activePageType === "port-forwarding" ? (

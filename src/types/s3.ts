@@ -31,6 +31,7 @@ export interface S3Connection {
   color: string | null;
   environment: string | null;
   notes: string | null;
+  r2_account_id: string | null;
   created_at: string;
 }
 

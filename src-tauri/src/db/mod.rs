@@ -447,6 +447,21 @@ impl HostDb {
             tracing::info!("migration 10→11 applied: ensured color, environment, notes on s3_connections");
         }
 
+        if version < 12 {
+            let has_r2_account_id: bool = conn
+                .prepare("SELECT r2_account_id FROM s3_connections LIMIT 0")
+                .is_ok();
+            if !has_r2_account_id {
+                conn.execute_batch(
+                    "ALTER TABLE s3_connections ADD COLUMN r2_account_id TEXT;",
+                )?;
+            }
+            conn.execute_batch(
+                "INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', '12');",
+            )?;
+            tracing::info!("migration 11→12 applied: added r2_account_id to s3_connections");
+        }
+
         Ok(())
     }
 
@@ -1250,12 +1265,13 @@ impl HostDb {
         color: Option<&str>,
         environment: Option<&str>,
         notes: Option<&str>,
+        r2_account_id: Option<&str>,
     ) -> Result<(), DbError> {
         let conn = self.conn.lock().map_err(|e| DbError::InitError(format!("db lock poisoned: {e}")))?;
         conn.execute(
-            "INSERT OR REPLACE INTO s3_connections (id, label, provider, region, endpoint, bucket, path_style, group_id, color, environment, notes, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, datetime('now'))",
-            params![id, label, provider, region, endpoint, bucket, path_style as i32, group_id, color, environment, notes],
+            "INSERT OR REPLACE INTO s3_connections (id, label, provider, region, endpoint, bucket, path_style, group_id, color, environment, notes, r2_account_id, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
+            params![id, label, provider, region, endpoint, bucket, path_style as i32, group_id, color, environment, notes, r2_account_id],
         )?;
         Ok(())
     }
@@ -1263,7 +1279,7 @@ impl HostDb {
     pub fn list_s3_connections(&self) -> Result<Vec<crate::s3::S3Connection>, DbError> {
         let conn = self.conn.lock().map_err(|e| DbError::InitError(format!("db lock poisoned: {e}")))?;
         let mut stmt = conn.prepare(
-            "SELECT id, label, provider, region, endpoint, bucket, path_style, group_id, color, environment, notes, created_at FROM s3_connections ORDER BY label"
+            "SELECT id, label, provider, region, endpoint, bucket, path_style, group_id, color, environment, notes, r2_account_id, created_at FROM s3_connections ORDER BY label"
         )?;
         let rows = stmt.query_map([], |row| {
             Ok(crate::s3::S3Connection {
@@ -1278,7 +1294,8 @@ impl HostDb {
                 color: row.get(8)?,
                 environment: row.get(9)?,
                 notes: row.get(10)?,
-                created_at: row.get(11)?,
+                r2_account_id: row.get(11)?,
+                created_at: row.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -1443,6 +1460,34 @@ mod tests {
         let all = db.list_groups().expect("list_groups");
         assert_eq!(all[0].name, "Renamed Group");
         assert_eq!(all[0].color, "#ec4899");
+    }
+
+    #[test]
+    fn round_trips_r2_account_id_on_s3_connections() {
+        let (db, _dir) = test_db();
+
+        db.save_s3_connection(
+            "r2-1",
+            "R2 production",
+            "r2",
+            "auto",
+            Some("https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com"),
+            Some("assets"),
+            true,
+            None,
+            None,
+            Some("production"),
+            Some("admin dashboard enabled"),
+            Some("0123456789abcdef0123456789abcdef"),
+        )
+        .expect("save_s3_connection");
+
+        let connections = db.list_s3_connections().expect("list_s3_connections");
+        assert_eq!(connections.len(), 1);
+        assert_eq!(
+            connections[0].r2_account_id.as_deref(),
+            Some("0123456789abcdef0123456789abcdef"),
+        );
     }
 
     #[test]

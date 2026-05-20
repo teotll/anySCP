@@ -127,6 +127,7 @@ pub struct S3Connection {
     pub color: Option<String>,
     pub environment: Option<String>,
     pub notes: Option<String>,
+    pub r2_account_id: Option<String>,
     pub created_at: String,
 }
 
