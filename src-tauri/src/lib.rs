@@ -15,6 +15,7 @@ use db::HostDb;
 use sftp::SftpManager;
 use sftp::transfer_manager::TransferManager;
 use portforward::manager::PortForwardManager;
+use r2::R2Manager;
 use s3::S3Manager;
 use s3::transfer_manager::S3TransferManager;
 use ssh::manager::SshManager;
@@ -62,6 +63,11 @@ pub fn run() {
             ));
             app.manage(s3_manager);
             app.manage(s3_transfer_manager);
+
+            let r2_manager = Arc::new(
+                R2Manager::new().map_err(|e| format!("failed to initialise R2 client: {e}"))?,
+            );
+            app.manage(r2_manager);
 
             Ok(())
         })
@@ -164,6 +170,7 @@ pub fn run() {
             r2::r2_delete_cors,
             r2::r2_get_lifecycle,
             r2::r2_put_lifecycle,
+            r2::r2_delete_lifecycle,
             r2::r2_get_managed_domain,
             r2::r2_update_managed_domain,
             r2::r2_list_custom_domains,

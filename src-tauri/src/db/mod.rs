@@ -1270,7 +1270,12 @@ impl HostDb {
         let conn = self.conn.lock().map_err(|e| DbError::InitError(format!("db lock poisoned: {e}")))?;
         conn.execute(
             "INSERT OR REPLACE INTO s3_connections (id, label, provider, region, endpoint, bucket, path_style, group_id, color, environment, notes, r2_account_id, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+                     CASE
+                       WHEN ?3 = 'r2' THEN COALESCE(NULLIF(?12, ''), (SELECT r2_account_id FROM s3_connections WHERE id = ?1))
+                       ELSE NULL
+                     END,
+                     datetime('now'))",
             params![id, label, provider, region, endpoint, bucket, path_style as i32, group_id, color, environment, notes, r2_account_id],
         )?;
         Ok(())
@@ -1488,6 +1493,89 @@ mod tests {
             connections[0].r2_account_id.as_deref(),
             Some("0123456789abcdef0123456789abcdef"),
         );
+    }
+
+    #[test]
+    fn preserves_r2_account_id_when_update_omits_it() {
+        let (db, _dir) = test_db();
+
+        db.save_s3_connection(
+            "r2-2",
+            "R2 production",
+            "r2",
+            "auto",
+            None,
+            Some("assets"),
+            true,
+            None,
+            None,
+            None,
+            None,
+            Some("0123456789abcdef0123456789abcdef"),
+        )
+        .expect("initial save");
+
+        db.save_s3_connection(
+            "r2-2",
+            "R2 renamed",
+            "r2",
+            "auto",
+            None,
+            Some("assets"),
+            true,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("update without account id");
+
+        let connections = db.list_s3_connections().expect("list_s3_connections");
+        assert_eq!(
+            connections[0].r2_account_id.as_deref(),
+            Some("0123456789abcdef0123456789abcdef"),
+        );
+    }
+
+    #[test]
+    fn clears_r2_account_id_when_provider_changes() {
+        let (db, _dir) = test_db();
+
+        db.save_s3_connection(
+            "r2-3",
+            "R2 production",
+            "r2",
+            "auto",
+            None,
+            Some("assets"),
+            true,
+            None,
+            None,
+            None,
+            None,
+            Some("0123456789abcdef0123456789abcdef"),
+        )
+        .expect("initial save");
+
+        db.save_s3_connection(
+            "r2-3",
+            "S3 production",
+            "aws",
+            "us-east-1",
+            None,
+            Some("assets"),
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("provider change");
+
+        let connections = db.list_s3_connections().expect("list_s3_connections");
+        assert!(connections[0].r2_account_id.is_none());
     }
 
     #[test]

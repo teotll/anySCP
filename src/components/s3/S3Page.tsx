@@ -65,7 +65,6 @@ export function S3Page() {
         environment: conn.environment,
         notes: conn.notes,
         r2AccountId: conn.r2_account_id,
-        r2ApiToken: null,
       });
       await loadSavedConnections();
     } catch {

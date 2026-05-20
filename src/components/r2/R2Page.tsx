@@ -24,6 +24,14 @@ import { S3ConnectDialog } from "../s3/S3ConnectDialog";
 
 type R2Tab = "overview" | "cors" | "lifecycle" | "domains" | "metrics";
 
+interface ConfirmAction {
+  title: string;
+  body: string;
+  confirmText: string;
+  actionLabel: string;
+  onConfirm: () => Promise<void>;
+}
+
 const TAB_ITEMS: Array<{ id: R2Tab; label: string; icon: React.ElementType }> = [
   { id: "overview", label: "Overview", icon: Cloud },
   { id: "cors", label: "CORS", icon: Shield },
@@ -63,9 +71,18 @@ const EMPTY_LIFECYCLE = `{
 }`;
 
 function errorMessage(err: unknown, fallback: string) {
-  return err && typeof err === "object" && "message" in err
-    ? String((err as { message: string }).message)
-    : fallback;
+  if (!err || typeof err !== "object") return fallback;
+  const maybeError = err as { kind?: string; message?: string };
+  if (maybeError.kind === "missing_api_token") {
+    return "This R2 connection is missing a Cloudflare API token. Edit the connection and add an R2 admin token.";
+  }
+  if (maybeError.kind === "missing_account_id") {
+    return "This R2 connection is missing its Cloudflare Account ID. Edit the connection and add it.";
+  }
+  if (maybeError.kind === "not_r2_connection") {
+    return "Select a Cloudflare R2 connection before using the R2 dashboard.";
+  }
+  return maybeError.message ? String(maybeError.message) : fallback;
 }
 
 function prettyJson(value: unknown) {
@@ -90,6 +107,8 @@ export function R2Page() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [confirmationText, setConfirmationText] = useState("");
 
   const [newBucketName, setNewBucketName] = useState("");
   const [newBucketJurisdiction, setNewBucketJurisdiction] = useState("");
@@ -257,23 +276,29 @@ export function R2Page() {
   const deleteBucket = async () => {
     const name = bucketName(selectedBucket);
     if (!selectedConnectionId || !name) return;
-    const confirmName = window.prompt(`Type ${name} to delete this bucket`);
-    if (confirmName !== name) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await invoke("r2_delete_bucket", {
-        connectionId: selectedConnectionId,
-        bucketName: name,
-        confirmName,
-        jurisdiction: bucketJurisdiction(selectedBucket),
-      });
-      await loadBuckets();
-    } catch (err) {
-      setError(errorMessage(err, "Could not delete bucket"));
-    } finally {
-      setSaving(false);
-    }
+    setConfirmAction({
+      title: "Delete Bucket",
+      body: `This permanently deletes the R2 bucket "${name}". Cloudflare only allows deleting empty buckets; if the bucket still contains objects, the request will fail.`,
+      confirmText: name,
+      actionLabel: "Delete Bucket",
+      onConfirm: async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          await invoke("r2_delete_bucket", {
+            connectionId: selectedConnectionId,
+            bucketName: name,
+            confirmName: name,
+            jurisdiction: bucketJurisdiction(selectedBucket),
+          });
+          await loadBuckets();
+        } catch (err) {
+          setError(errorMessage(err, "Could not delete bucket"));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   const savePolicy = async (policy: "cors" | "lifecycle") => {
@@ -300,20 +325,55 @@ export function R2Page() {
   const deleteCors = async () => {
     const name = bucketName(selectedBucket);
     if (!selectedConnectionId || !name) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await invoke("r2_delete_cors", {
-        connectionId: selectedConnectionId,
-        bucketName: name,
-        jurisdiction: bucketJurisdiction(selectedBucket),
-      });
-      setCorsJson(EMPTY_CORS);
-    } catch (err) {
-      setError(errorMessage(err, "Could not delete CORS policy"));
-    } finally {
-      setSaving(false);
-    }
+    setConfirmAction({
+      title: "Delete CORS Policy",
+      body: `This removes the CORS policy from "${name}". Browser clients that depend on this policy may stop working immediately.`,
+      confirmText: name,
+      actionLabel: "Delete CORS",
+      onConfirm: async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          await invoke("r2_delete_cors", {
+            connectionId: selectedConnectionId,
+            bucketName: name,
+            jurisdiction: bucketJurisdiction(selectedBucket),
+          });
+          setCorsJson(EMPTY_CORS);
+        } catch (err) {
+          setError(errorMessage(err, "Could not delete CORS policy"));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const deleteLifecycle = async () => {
+    const name = bucketName(selectedBucket);
+    if (!selectedConnectionId || !name) return;
+    setConfirmAction({
+      title: "Delete Lifecycle Rules",
+      body: `This removes all lifecycle rules from "${name}". Existing automatic expiration and transition behavior will stop.`,
+      confirmText: name,
+      actionLabel: "Delete Lifecycle",
+      onConfirm: async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          await invoke("r2_delete_lifecycle", {
+            connectionId: selectedConnectionId,
+            bucketName: name,
+            jurisdiction: bucketJurisdiction(selectedBucket),
+          });
+          setLifecycleJson(EMPTY_LIFECYCLE);
+        } catch (err) {
+          setError(errorMessage(err, "Could not delete lifecycle rules"));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   const updateManagedDomain = async (enabled: boolean) => {
@@ -346,7 +406,7 @@ export function R2Page() {
         domain: customDomain.trim(),
         zoneId: customZoneId.trim(),
         enabled: true,
-        minTLS: customMinTls || null,
+        minTls: customMinTls || null,
       };
       await invoke("r2_attach_custom_domain", {
         connectionId: selectedConnectionId,
@@ -366,27 +426,48 @@ export function R2Page() {
   const deleteCustomDomain = async (domain: string) => {
     const name = bucketName(selectedBucket);
     if (!selectedConnectionId || !name || !domain) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await invoke("r2_delete_custom_domain", {
-        connectionId: selectedConnectionId,
-        bucketName: name,
-        domain,
-        jurisdiction: bucketJurisdiction(selectedBucket),
-      });
-      await loadDomains();
-    } catch (err) {
-      setError(errorMessage(err, "Could not delete custom domain"));
-    } finally {
-      setSaving(false);
-    }
+    setConfirmAction({
+      title: "Delete Custom Domain",
+      body: `This detaches "${domain}" from "${name}". Traffic to this domain may stop routing to the bucket.`,
+      confirmText: domain,
+      actionLabel: "Delete Domain",
+      onConfirm: async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          await invoke("r2_delete_custom_domain", {
+            connectionId: selectedConnectionId,
+            bucketName: name,
+            domain,
+            jurisdiction: bucketJurisdiction(selectedBucket),
+          });
+          await loadDomains();
+        } catch (err) {
+          setError(errorMessage(err, "Could not delete custom domain"));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   const customDomainRows = Array.isArray((customDomains as { domains?: unknown[] } | null)?.domains)
     ? (customDomains as { domains: Array<Record<string, unknown>> }).domains
     : [];
   const managedEnabled = Boolean((managedDomain as { enabled?: unknown } | null)?.enabled);
+  const confirmationMatches = Boolean(confirmAction && confirmationText === confirmAction.confirmText);
+
+  const closeConfirm = () => {
+    setConfirmAction(null);
+    setConfirmationText("");
+  };
+
+  const confirmDestructiveAction = async () => {
+    if (!confirmAction || !confirmationMatches) return;
+    const action = confirmAction;
+    closeConfirm();
+    await action.onConfirm();
+  };
 
   return (
     <>
@@ -527,7 +608,7 @@ export function R2Page() {
                   {selectedBucketName || "Account"}
                 </h2>
                 <p className="text-[length:var(--text-xs)] text-text-muted truncate">
-                  {selectedConnection?.r2_account_id ?? "Cloudflare R2"}
+                  {selectedConnection?.r2_account_id ? `Account: ${selectedConnection.r2_account_id}` : "Cloudflare R2"}
                 </p>
               </div>
               {selectedBucket && (
@@ -560,6 +641,7 @@ export function R2Page() {
                     type="button"
                     onClick={() => setTab(item.id)}
                     disabled={disabled}
+                    title={disabled ? "Select a bucket first" : item.label}
                     className={[
                       "flex items-center gap-2 px-3 h-9 text-[length:var(--text-sm)] border-b-2 -mb-px disabled:opacity-40",
                       active
@@ -609,6 +691,7 @@ export function R2Page() {
                 value={lifecycleJson}
                 onChange={setLifecycleJson}
                 onSave={() => void savePolicy("lifecycle")}
+                onDelete={() => void deleteLifecycle()}
                 saving={saving}
               />
             )}
@@ -736,6 +819,56 @@ export function R2Page() {
 
       {showConnectionDialog && (
         <S3ConnectDialog onClose={() => { setShowConnectionDialog(false); void loadConnections(); }} />
+      )}
+
+      {confirmAction && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "oklch(0 0 0 / 0.5)", backdropFilter: "blur(4px)" }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !saving) closeConfirm();
+          }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-bg-overlay border border-border shadow-[var(--shadow-lg)]">
+            <div className="px-5 pt-5 pb-4 border-b border-border">
+              <h3 className="text-[length:var(--text-lg)] font-semibold text-text-primary">
+                {confirmAction.title}
+              </h3>
+              <p className="mt-2 text-[length:var(--text-sm)] text-text-secondary">
+                {confirmAction.body}
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <label className="block text-[length:var(--text-xs)] font-medium text-text-secondary mb-1">
+                Type <span className="font-mono text-text-primary">{confirmAction.confirmText}</span> to confirm
+              </label>
+              <input
+                value={confirmationText}
+                onChange={(event) => setConfirmationText(event.target.value)}
+                autoFocus
+                className="w-full rounded-lg bg-bg-base border border-border px-3 py-2 text-[length:var(--text-sm)] text-text-primary outline-none focus:border-border-focus focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="px-5 pb-5 pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeConfirm}
+                disabled={saving}
+                className="px-4 py-2 text-[length:var(--text-sm)] text-text-secondary hover:text-text-primary rounded-lg transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDestructiveAction()}
+                disabled={!confirmationMatches || saving}
+                className="px-4 py-2 text-[length:var(--text-sm)] font-medium text-text-inverse bg-status-error hover:bg-status-error/90 disabled:opacity-50 rounded-lg transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {confirmAction.actionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

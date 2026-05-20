@@ -645,7 +645,6 @@ export function HostsDashboard() {
                       environment: s3ContextMenu.conn.environment,
                       notes: s3ContextMenu.conn.notes,
                       r2AccountId: s3ContextMenu.conn.r2_account_id,
-                      r2ApiToken: null,
                     });
                   } catch { /* credential-less copy saved to DB */ }
                   await loadS3Connections();

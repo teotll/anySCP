@@ -21,7 +21,7 @@ export interface R2AttachCustomDomainRequest {
   domain: string;
   zoneId: string;
   enabled?: boolean;
-  minTLS?: string | null;
+  minTls?: string | null;
 }
 
 export type R2Json = Record<string, unknown> | unknown[] | string | number | boolean | null;

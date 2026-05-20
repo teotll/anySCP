@@ -214,6 +214,11 @@ pub async fn s3_update_connection(
         if let Some(token) = r2_api_token.filter(|token| !token.trim().is_empty()) {
             save_r2_admin_token(id.clone(), token).await?;
         }
+    } else {
+        let vault_key = r2_admin_vault_key(&id);
+        let _ = tokio::task::spawn_blocking(move || {
+            crate::vault::delete_credential(&vault_key)
+        }).await;
     }
 
     Ok(())
