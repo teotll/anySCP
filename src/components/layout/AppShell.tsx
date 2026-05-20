@@ -271,7 +271,7 @@ export function AppShell() {
                   <ExplorerPage s3SessionId={activeTab.id} />
                 ) : activePageType === "hosts" ? (
                   <HostsDashboard />
-                ) : activePageType === "sftp" ? (
+                ) : activePageType === "explorer" ? (
                   <SftpPage />
                 ) : activePageType === "snippets" ? (
                   <SnippetsPage />

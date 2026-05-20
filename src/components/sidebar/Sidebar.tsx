@@ -18,7 +18,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "hosts",            icon: Monitor,        label: "Hosts",     page: "hosts" },
-  { id: "sftp",             icon: FolderOpen,     label: "Explorer",  page: "sftp" },
+  { id: "explorer",         icon: FolderOpen,     label: "Explorer",  page: "explorer" },
   { id: "snippets",         icon: Braces,         label: "Snippets",  page: "snippets" },
   { id: "port-forwarding",  icon: Plug,           label: "Tunnels",   page: "port-forwarding" },
   { id: "history",          icon: History,        label: "History",   page: "history" },
@@ -152,8 +152,8 @@ export function Sidebar() {
   const getActiveId = (): string | null => {
     if (!activeTab) return null;
     if (activeTab.type === "terminal") return "terminal";
-    if (activeTab.type === "sftp") return "sftp";
-    if (activeTab.type === "s3") return "sftp"; // S3 grouped under Explorer
+    if (activeTab.type === "sftp") return "explorer";
+    if (activeTab.type === "s3") return "explorer"; // S3 grouped under Explorer
     if (activeTab.type === "page") return activeTab.page;
     return null;
   };
