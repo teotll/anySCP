@@ -199,6 +199,34 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
     }
   }, [sftpSessionId]);
 
+  const handleDownloadEntries = useCallback(async (entries: ExplorerEntry[]) => {
+    if (entries.length === 0) return;
+
+    if (entries.length === 1) {
+      await handleDownload(entries[0]);
+      return;
+    }
+
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const localDir = await open({
+        directory: true,
+        title: `Download ${entries.length} items to...`,
+      }) as string | null;
+
+      if (!localDir) return;
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("sftp_enqueue_download", {
+        sftpSessionId,
+        remotePaths: entries.map((entry) => entry.id),
+        localDir,
+      });
+    } catch (err) {
+      console.error("Download enqueue failed:", err);
+    }
+  }, [handleDownload, sftpSessionId]);
+
   // ─── Upload (dialog) ─────────────────────────────────────────────────────
 
   const handleUpload = useCallback(async () => {
@@ -476,6 +504,7 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
         onSetClipboard={handleSetClipboard}
         onNavigate={(path) => void loadDirectory(path)}
         onDownload={(entry) => void handleDownload(entry)}
+        onDownloadEntries={(entries) => void handleDownloadEntries(entries)}
         onDelete={handleDelete}
         onRename={handleRename}
         onEditInEditor={handleEditInEditor}

@@ -36,6 +36,7 @@ interface ExplorerFileTableProps {
   onSetClipboard: (clipboard: ExplorerClipboard | null) => void;
   onNavigate: (path: string) => void;
   onDownload: (entry: ExplorerEntry) => void;
+  onDownloadEntries?: (entries: ExplorerEntry[]) => void;
   onDelete: (entries: ExplorerEntry[]) => Promise<void>;
   onRename?: (entry: ExplorerEntry, newName: string) => Promise<void>;
   onEditInEditor?: (entry: ExplorerEntry) => void;
@@ -61,6 +62,17 @@ interface ContextMenuState {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function buildDownloadSelectionLabel(
+  entries: ExplorerEntry[],
+  providerType: FileSystemProvider["type"],
+): string | null {
+  if (providerType !== "sftp" || entries.length === 0) return null;
+  if (entries.length === 1) {
+    return entries[0].entryType === "Directory" ? "Download Folder" : "Download";
+  }
+  return `Download ${entries.length} items`;
+}
 
 function formatModified(unix: number | null): string {
   if (unix === null) return "—";
@@ -256,6 +268,7 @@ export function ExplorerFileTable({
   onSetClipboard,
   onNavigate,
   onDownload,
+  onDownloadEntries,
   onDelete,
   onRename,
   onEditInEditor,
@@ -384,10 +397,24 @@ export function ExplorerFileTable({
         items.push({ label: "", onClick: () => {}, separator: true, disabled: true });
       }
       if (caps.canCreateFile) {
-        items.push({ label: "New File", icon: File, onClick: () => onCreateFile?.("") || document.dispatchEvent(new CustomEvent("explorer:new-file")) });
+        items.push({
+          label: "New File",
+          icon: File,
+          onClick: () => {
+            if (onCreateFile) onCreateFile("");
+            else document.dispatchEvent(new CustomEvent("explorer:new-file"));
+          },
+        });
       }
       if (caps.canCreateFolder) {
-        items.push({ label: "New Folder", icon: FolderPlus, onClick: () => onCreateFolder?.("") || document.dispatchEvent(new CustomEvent("explorer:new-folder")) });
+        items.push({
+          label: "New Folder",
+          icon: FolderPlus,
+          onClick: () => {
+            if (onCreateFolder) onCreateFolder("");
+            else document.dispatchEvent(new CustomEvent("explorer:new-folder"));
+          },
+        });
       }
       return items;
     }
@@ -398,6 +425,19 @@ export function ExplorerFileTable({
 
     if (isInSelection) {
       const count = selectedIds.size;
+      const downloadLabel = caps.canDownload
+        ? buildDownloadSelectionLabel(selectedEntries, provider.type)
+        : null;
+      if (downloadLabel) {
+        items.push({
+          label: downloadLabel,
+          icon: Download,
+          onClick: () => {
+            if (onDownloadEntries) onDownloadEntries(selectedEntries);
+            else onDownload(selectedEntries[0]);
+          },
+        });
+      }
       if (caps.canCopyPaste) {
         items.push({
           label: `Copy ${count} items`,
