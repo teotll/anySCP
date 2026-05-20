@@ -911,7 +911,7 @@ export function R2Page() {
         </main>
       </div>
 
-      {showConnectionDialog && (
+      {showConnectionDialog && !editingConnection && (
         <S3ConnectDialog onClose={() => { setShowConnectionDialog(false); void loadConnections(); }} />
       )}
 
