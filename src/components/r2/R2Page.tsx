@@ -32,6 +32,11 @@ interface ConfirmAction {
   onConfirm: () => Promise<void>;
 }
 
+interface R2ErrorInfo {
+  message: string;
+  action?: "edit_connection";
+}
+
 const TAB_ITEMS: Array<{ id: R2Tab; label: string; icon: React.ElementType }> = [
   { id: "overview", label: "Overview", icon: Cloud },
   { id: "cors", label: "CORS", icon: Shield },
@@ -70,19 +75,95 @@ const EMPTY_LIFECYCLE = `{
   ]
 }`;
 
-function errorMessage(err: unknown, fallback: string) {
-  if (!err || typeof err !== "object") return fallback;
-  const maybeError = err as { kind?: string; message?: string };
-  if (maybeError.kind === "missing_api_token") return "This R2 connection is missing a Cloudflare API token. Edit the connection and add an R2 admin token.";
-  if (maybeError.kind === "missing_account_id") return "This R2 connection is missing its Cloudflare Account ID. Edit the connection and add it.";
-  if (maybeError.kind === "not_r2_connection") return "Select a Cloudflare R2 connection before using the R2 dashboard.";
-  if (maybeError.kind === "connection_not_found") return "This saved R2 connection no longer exists. Refresh connections and select another one.";
-  if (maybeError.kind === "invalid_request") return maybeError.message ? String(maybeError.message) : "The R2 request is not valid. Check the form values and try again.";
-  if (maybeError.kind === "network") return maybeError.message ? `Could not reach Cloudflare: ${maybeError.message}` : "Could not reach Cloudflare. Check your network and try again.";
-  if (maybeError.kind === "cloudflare_api") return maybeError.message ? String(maybeError.message) : "Cloudflare rejected the request. Check your token permissions and bucket settings.";
-  if (maybeError.kind === "decode") return maybeError.message ? `Cloudflare returned an unexpected response: ${maybeError.message}` : "Cloudflare returned an unexpected response.";
-  if (maybeError.kind === "io") return maybeError.message ? String(maybeError.message) : "The local credential store or database could not be read.";
-  return maybeError.message ? String(maybeError.message) : fallback;
+function errorInfo(err: unknown, fallback: string): R2ErrorInfo {
+  if (!err || typeof err !== "object") return { message: fallback };
+  const maybeError = err as { kind?: string; message?: string; code?: number | null };
+  const message = maybeError.message ? String(maybeError.message) : "";
+  const codeSuffix =
+    typeof maybeError.code === "number" ? ` (Cloudflare code ${maybeError.code})` : "";
+
+  if (maybeError.kind === "missing_api_token") {
+    return {
+      message:
+        "This R2 connection is missing a Cloudflare API token. Edit the connection and add an R2 admin token.",
+      action: "edit_connection",
+    };
+  }
+  if (maybeError.kind === "missing_account_id") {
+    return {
+      message:
+        "This R2 connection is missing its Cloudflare Account ID. Edit the connection and add it.",
+      action: "edit_connection",
+    };
+  }
+  if (maybeError.kind === "not_r2_connection") {
+    return { message: "Select a Cloudflare R2 connection before using the R2 dashboard." };
+  }
+  if (maybeError.kind === "connection_not_found") {
+    return {
+      message: "This saved R2 connection no longer exists. Refresh connections and select another one.",
+    };
+  }
+  if (maybeError.kind === "invalid_request") {
+    return {
+      message: message || "The R2 request is not valid. Check the form values and try again.",
+    };
+  }
+  if (maybeError.kind === "network") {
+    return {
+      message: message
+        ? `Could not reach Cloudflare: ${message}`
+        : "Could not reach Cloudflare. Check your network and try again.",
+    };
+  }
+  if (maybeError.kind === "cloudflare_api") {
+    if (isCloudflareAuthError(maybeError.code, message)) {
+      return {
+        message:
+          `Cloudflare rejected this token or it lacks the required R2 permissions. ` +
+          `Edit the connection and check the token scopes${codeSuffix}.`,
+        action: "edit_connection",
+      };
+    }
+    if (isCloudflareRateLimit(maybeError.code, message)) {
+      return {
+        message: `Cloudflare rate limited this request. Wait a moment and try again${codeSuffix}.`,
+      };
+    }
+    return {
+      message:
+        message ||
+        `Cloudflare rejected the request. Check your token permissions and bucket settings${codeSuffix}.`,
+    };
+  }
+  if (maybeError.kind === "decode") {
+    return {
+      message: message
+        ? `Cloudflare returned an unexpected response: ${message}`
+        : "Cloudflare returned an unexpected response.",
+    };
+  }
+  if (maybeError.kind === "io") {
+    return {
+      message: message || "The local credential store or database could not be read.",
+    };
+  }
+  return { message: message || fallback };
+}
+
+function isCloudflareAuthError(code: number | null | undefined, message: string) {
+  return (
+    code === 10000 ||
+    code === 10001 ||
+    code === 10013 ||
+    code === 9103 ||
+    code === 9109 ||
+    /auth|invalid api token|unauthori[sz]ed|permission|forbidden/i.test(message)
+  );
+}
+
+function isCloudflareRateLimit(code: number | null | undefined, message: string) {
+  return code === 10100 || code === 1015 || /rate.?limit|too many requests|http 429/i.test(message);
 }
 
 function prettyJson(value: unknown) {
@@ -101,12 +182,13 @@ export function R2Page() {
   const [connections, setConnections] = useState<S3Connection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
+  const [editingConnection, setEditingConnection] = useState<S3Connection | null>(null);
   const [buckets, setBuckets] = useState<R2Bucket[]>([]);
   const [selectedBucketName, setSelectedBucketName] = useState("");
   const [tab, setTab] = useState<R2Tab>("overview");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<R2ErrorInfo | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmationText, setConfirmationText] = useState("");
 
@@ -164,7 +246,7 @@ export function R2Page() {
           : result[0]?.name ?? ""
       ));
     } catch (err) {
-      setError(errorMessage(err, "Could not load R2 buckets"));
+      setError(errorInfo(err, "Could not load R2 buckets"));
     } finally {
       setLoading(false);
     }
@@ -185,7 +267,7 @@ export function R2Page() {
       if (policy === "cors") setCorsJson(prettyJson(value));
       else setLifecycleJson(prettyJson(value));
     } catch (err) {
-      setError(errorMessage(err, `Could not load ${policy}`));
+      setError(errorInfo(err, `Could not load ${policy}`));
     } finally {
       setLoading(false);
     }
@@ -212,7 +294,7 @@ export function R2Page() {
       setManagedDomain(managed);
       setCustomDomains(custom);
     } catch (err) {
-      setError(errorMessage(err, "Could not load domains"));
+      setError(errorInfo(err, "Could not load domains"));
     } finally {
       setLoading(false);
     }
@@ -228,7 +310,7 @@ export function R2Page() {
       });
       setMetrics(value);
     } catch (err) {
-      setError(errorMessage(err, "Could not load R2 metrics"));
+      setError(errorInfo(err, "Could not load R2 metrics"));
     } finally {
       setLoading(false);
     }
@@ -267,7 +349,7 @@ export function R2Page() {
       setNewBucketName("");
       await loadBuckets();
     } catch (err) {
-      setError(errorMessage(err, "Could not create bucket"));
+      setError(errorInfo(err, "Could not create bucket"));
     } finally {
       setSaving(false);
     }
@@ -293,7 +375,7 @@ export function R2Page() {
           });
           await loadBuckets();
         } catch (err) {
-          setError(errorMessage(err, "Could not delete bucket"));
+          setError(errorInfo(err, "Could not delete bucket"));
         } finally {
           setSaving(false);
         }
@@ -316,7 +398,7 @@ export function R2Page() {
       });
       await loadBucketPolicy(policy);
     } catch (err) {
-      setError(err instanceof SyntaxError ? err.message : errorMessage(err, `Could not save ${policy}`));
+      setError(err instanceof SyntaxError ? { message: err.message } : errorInfo(err, `Could not save ${policy}`));
     } finally {
       setSaving(false);
     }
@@ -341,7 +423,7 @@ export function R2Page() {
           });
           setCorsJson(EMPTY_CORS);
         } catch (err) {
-          setError(errorMessage(err, "Could not delete CORS policy"));
+          setError(errorInfo(err, "Could not delete CORS policy"));
         } finally {
           setSaving(false);
         }
@@ -368,7 +450,7 @@ export function R2Page() {
           });
           setLifecycleJson(EMPTY_LIFECYCLE);
         } catch (err) {
-          setError(errorMessage(err, "Could not delete lifecycle rules"));
+          setError(errorInfo(err, "Could not delete lifecycle rules"));
         } finally {
           setSaving(false);
         }
@@ -390,7 +472,7 @@ export function R2Page() {
       });
       setManagedDomain(value);
     } catch (err) {
-      setError(errorMessage(err, "Could not update r2.dev domain"));
+      setError(errorInfo(err, "Could not update r2.dev domain"));
     } finally {
       setSaving(false);
     }
@@ -417,7 +499,7 @@ export function R2Page() {
       setCustomDomain("");
       await loadDomains();
     } catch (err) {
-      setError(errorMessage(err, "Could not attach custom domain"));
+      setError(errorInfo(err, "Could not attach custom domain"));
     } finally {
       setSaving(false);
     }
@@ -443,7 +525,7 @@ export function R2Page() {
           });
           await loadDomains();
         } catch (err) {
-          setError(errorMessage(err, "Could not delete custom domain"));
+          setError(errorInfo(err, "Could not delete custom domain"));
         } finally {
           setSaving(false);
         }
@@ -625,8 +707,20 @@ export function R2Page() {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-status-error/30 bg-status-error/10 px-3 py-2 text-[length:var(--text-sm)] text-status-error">
-                {error}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-status-error/30 bg-status-error/10 px-3 py-2 text-[length:var(--text-sm)] text-status-error">
+                <span className="min-w-0 flex-1">{error.message}</span>
+                {error.action === "edit_connection" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedConnection) setEditingConnection(selectedConnection);
+                      else setShowConnectionDialog(true);
+                    }}
+                    className="shrink-0 h-7 px-2.5 rounded-md border border-status-error/40 text-status-error hover:bg-status-error/10 text-[length:var(--text-xs)] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Edit Connection
+                  </button>
+                )}
               </div>
             )}
 
@@ -819,6 +913,13 @@ export function R2Page() {
 
       {showConnectionDialog && (
         <S3ConnectDialog onClose={() => { setShowConnectionDialog(false); void loadConnections(); }} />
+      )}
+
+      {editingConnection && (
+        <S3ConnectDialog
+          editConnection={editingConnection}
+          onClose={() => { setEditingConnection(null); void loadConnections(); }}
+        />
       )}
 
       {confirmAction && (

@@ -39,7 +39,12 @@ impl Serialize for R2Error {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("R2Error", 2)?;
+        let field_count = if matches!(self, R2Error::Api { .. }) {
+            3
+        } else {
+            2
+        };
+        let mut state = serializer.serialize_struct("R2Error", field_count)?;
         let kind = match self {
             R2Error::ConnectionNotFound(_) => "connection_not_found",
             R2Error::NotR2Connection => "not_r2_connection",
@@ -53,6 +58,9 @@ impl Serialize for R2Error {
         };
         state.serialize_field("kind", kind)?;
         state.serialize_field("message", &self.to_string())?;
+        if let R2Error::Api { code, .. } = self {
+            state.serialize_field("code", code)?;
+        }
         state.end()
     }
 }
@@ -896,6 +904,18 @@ mod tests {
         };
 
         assert_eq!(cloudflare_message(&envelope), "10013: Invalid API token");
+    }
+
+    #[test]
+    fn api_error_serializes_cloudflare_code() {
+        let value = serde_json::to_value(R2Error::Api {
+            code: Some(10013),
+            message: "Invalid API token".to_string(),
+        })
+        .expect("serialize R2Error");
+
+        assert_eq!(value["kind"], "cloudflare_api");
+        assert_eq!(value["code"], 10013);
     }
 
     #[test]
