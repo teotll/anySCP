@@ -296,6 +296,7 @@ impl TransferManager {
         sftp_session_id: String,
         remote_paths: Vec<String>,
         local_dir: PathBuf,
+        local_path: Option<PathBuf>,
     ) -> Result<Vec<String>, SftpError> {
         self.ensure_worker_spawned();
         let sftp_arc = {
@@ -304,6 +305,11 @@ impl TransferManager {
         };
 
         let mut ids = Vec::with_capacity(remote_paths.len());
+        let explicit_file_destination = if remote_paths.len() == 1 {
+            local_path
+        } else {
+            None
+        };
 
         for remote_path in remote_paths {
             let name = std::path::Path::new(&remote_path)
@@ -338,7 +344,11 @@ impl TransferManager {
                         count,
                     )
                 } else {
-                    let local_dest = local_dir.join(&name);
+                    let local_dest = download_file_destination(
+                        local_dir.clone(),
+                        &name,
+                        explicit_file_destination.clone(),
+                    );
                     let size = attrs.size.unwrap_or(0);
                     (
                         TransferJobKind::DownloadFile {
@@ -486,6 +496,14 @@ impl TransferManager {
             std::cmp::Ordering::Equal => {}
         }
     }
+}
+
+fn download_file_destination(
+    local_dir: PathBuf,
+    remote_name: &str,
+    explicit_local_path: Option<PathBuf>,
+) -> PathBuf {
+    explicit_local_path.unwrap_or_else(|| local_dir.join(remote_name))
 }
 
 // ─── Remote directory statistics ─────────────────────────────────────────────
@@ -1281,5 +1299,23 @@ mod tests {
         let info = job.to_info();
         // Speed is 0 => cannot compute ETA
         assert_eq!(info.eta_secs, None);
+    }
+
+    #[test]
+    fn download_file_destination_uses_explicit_save_path() {
+        let dest = download_file_destination(
+            PathBuf::from("/tmp/downloads"),
+            "remote.txt",
+            Some(PathBuf::from("/tmp/downloads/renamed.txt")),
+        );
+
+        assert_eq!(dest, PathBuf::from("/tmp/downloads/renamed.txt"));
+    }
+
+    #[test]
+    fn download_file_destination_falls_back_to_remote_name() {
+        let dest = download_file_destination(PathBuf::from("/tmp/downloads"), "remote.txt", None);
+
+        assert_eq!(dest, PathBuf::from("/tmp/downloads/remote.txt"));
     }
 }

@@ -175,24 +175,26 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
     try {
       const { open, save } = await import("@tauri-apps/plugin-dialog");
       let localDir: string | null = null;
+      let localPath: string | null = null;
 
       if (entry.entryType === "Directory") {
         localDir = await open({ directory: true, title: `Download "${entry.name}" to…` }) as string | null;
       } else {
         const savePath = await save({ defaultPath: entry.name, title: `Save "${entry.name}" as…` });
         if (savePath) {
-          const lastSlash = savePath.lastIndexOf("/");
-          localDir = lastSlash > 0 ? savePath.substring(0, lastSlash) : savePath;
+          localPath = savePath;
+          localDir = "";
         }
       }
 
-      if (!localDir) return;
+      if (!localDir && !localPath) return;
 
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("sftp_enqueue_download", {
         sftpSessionId,
         remotePaths: [entry.id],
         localDir,
+        localPath,
       });
     } catch (err) {
       console.error("Download enqueue failed:", err);
@@ -221,6 +223,7 @@ export function SftpBrowser({ sftpSessionId }: SftpBrowserProps) {
         sftpSessionId,
         remotePaths: entries.map((entry) => entry.id),
         localDir,
+        localPath: null,
       });
     } catch (err) {
       console.error("Download enqueue failed:", err);
