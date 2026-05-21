@@ -1,13 +1,19 @@
 # Workflow Notes For Agents
 
-## Standard Start
+## State Checks
+
+When branch, remote, or worktree state is unclear, check it before editing:
 
 ```bash
 git status --short --branch
 git remote -v
 ```
 
-Use `rg` / `rg --files` for exploration. Prefer reading the surrounding implementation before making a change.
+Prefer reading the surrounding implementation before making a change. Use the search tool that fits the agent environment:
+
+- Codex terminal: `rg` / `rg --files`.
+- Claude Code: `Grep` / `Glob`.
+- Other agents: equivalent fast file and text search.
 
 ## Build And Test Matrix
 
@@ -94,4 +100,3 @@ Before changing release behavior, inspect:
 - `src-tauri/tauri.conf.json`
 - package/Cargo version metadata
 - updater signing settings
-

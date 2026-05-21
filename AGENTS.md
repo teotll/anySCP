@@ -2,6 +2,12 @@
 
 This file is the entry point for future Codex sessions in this repository. Read it before making changes.
 
+## What The App Does
+
+AnySCP is an operations desktop app for people who manage remote machines and object storage. Users save SSH and object-storage connections, open SSH terminals, browse remote SFTP folders, move files, manage S3-compatible buckets, and administer Cloudflare R2 settings such as CORS, lifecycle rules, domains, and metrics.
+
+The main interaction model is a left sidebar plus unified tabs. SSH sessions, SFTP explorers, S3 browsers, and the R2 dashboard should feel like parts of one local operations workspace rather than separate apps.
+
 ## Project Snapshot
 
 AnySCP is a Tauri v2 desktop app with a React/TypeScript frontend and Rust backend. This repository is the `teotll/anySCP` fork of the original `macnev2013/anySCP` project and is expected to diverge quickly.
@@ -20,9 +26,9 @@ More context:
 - [Security Notes](docs/agents/security.md)
 - [Workflow Notes](docs/agents/workflows.md)
 
-## First Checks
+## Repo State Checks
 
-Run these before editing unless the user explicitly asks for something narrower:
+If branch, remote, or worktree state is unclear, check it before editing:
 
 ```bash
 git status --short --branch
@@ -35,7 +41,7 @@ Expected normal remote:
 origin  https://github.com/teotll/anySCP.git
 ```
 
-Do not assume the working tree is clean. Never revert user changes unless the user explicitly asks.
+Never revert user changes unless the user explicitly asks.
 
 ## Common Commands
 
@@ -89,16 +95,20 @@ Existing Vite warnings about dynamic imports and chunk size may appear during `p
 ## Editing Rules
 
 - Prefer existing patterns over new abstractions.
-- Use `rg` for searching.
-- Use `apply_patch` for manual edits.
 - Keep changes scoped to the user request.
 - Keep generated/build artifacts out of commits unless explicitly requested.
 - Do not add telemetry, analytics, crash uploaders, or remote reporting.
 - Do not log credentials, private keys, tokens, bucket object names, local paths, or remote paths unless there is an explicit user-facing reason and the data is not sensitive.
 
-## Git And Commit Notes
+## Agent Tooling
 
-Recent work has been committed directly on `main`. Confirm branch state before assuming that is still true.
+Use the equivalent tools for the agent environment you are running in:
+
+- Codex: prefer shell `rg` / `rg --files` for search and `apply_patch` for manual file edits.
+- Claude Code: use `Grep` / `Glob` for search and `Edit` / `MultiEdit` / `Write` for file edits.
+- Other agents: use the nearest safe equivalents, and avoid destructive shell edits when a structured edit tool is available.
+
+## Git And Commit Notes
 
 If the user asks to push, push `main` to `origin` only after verifying the remote points to the fork.
 
@@ -109,4 +119,3 @@ Harden R2 dashboard review issues
 Surface Cloudflare R2 API codes
 Refresh README for fork direction
 ```
-
