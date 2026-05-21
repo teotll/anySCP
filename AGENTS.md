@@ -10,7 +10,7 @@ The main interaction model is a left sidebar plus unified tabs. SSH sessions, SF
 
 ## Project Snapshot
 
-Retoom is a Tauri v2 desktop app with a React/TypeScript frontend and Rust backend. This repository is currently the `teotll/anySCP` fork of the original `macnev2013/anySCP` project and is expected to diverge quickly. The fork date is May 20, 2026.
+Retoom is a Tauri v2 desktop app with a React/TypeScript frontend and Rust backend. This repository is the `teotll/Retoom` fork of the original `macnev2013/anySCP` project and is expected to diverge quickly. The fork date is May 20, 2026.
 
 Current fork direction:
 
@@ -27,8 +27,6 @@ More context:
 - [Security Notes](docs/agents/security.md)
 - [Workflow Notes](docs/agents/workflows.md)
 
-Retoom currently keeps GitHub URLs pointing at `teotll/anySCP` until the repository is renamed. Use the checklist in [Workflow Notes](docs/agents/workflows.md#github-repository-rename-checklist) when that happens.
-
 ## Repo State Checks
 
 If branch, remote, or worktree state is unclear, check it before editing:
@@ -41,7 +39,7 @@ git remote -v
 Expected normal remote:
 
 ```text
-origin  https://github.com/teotll/anySCP.git
+origin  https://github.com/teotll/Retoom.git
 ```
 
 ## Common Commands

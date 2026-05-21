@@ -4,8 +4,8 @@ version = "0.0.0-dev"
 description = "Remote tools for macOS"
 authors = ["Retoom contributors"]
 license = "MIT"
-repository = "https://github.com/teotll/anySCP"
-homepage = "https://github.com/teotll/anySCP"
+repository = "https://github.com/teotll/Retoom"
+homepage = "https://github.com/teotll/Retoom"
 edition = "2021"
 
 [lib]

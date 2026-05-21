@@ -10,7 +10,7 @@ Retoom was forked from [macnev2013/anySCP](https://github.com/macnev2013/anySCP)
 
 This fork keeps the MIT license and credits the original project, but it is expected to diverge quickly. The current direction is a local-first macOS operations client with stronger security defaults, revived SFTP explorer workflows, first-class Cloudflare R2 management, and future adapters for additional remote filesystems.
 
-The GitHub repository currently still lives at [teotll/anySCP](https://github.com/teotll/anySCP). The repository rename will happen separately.
+The GitHub repository now lives at [teotll/Retoom](https://github.com/teotll/Retoom).
 
 ## Platform Scope
 
@@ -117,8 +117,8 @@ Retoom will include adapters for additional remote filesystems over time. The ex
 ### Development
 
 ```bash
-git clone https://github.com/teotll/anySCP.git
-cd anySCP
+git clone https://github.com/teotll/Retoom.git
+cd Retoom
 
 pnpm install
 pnpm tauri dev
