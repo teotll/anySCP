@@ -41,8 +41,6 @@ Expected normal remote:
 origin  https://github.com/teotll/anySCP.git
 ```
 
-Never revert user changes unless the user explicitly asks.
-
 ## Common Commands
 
 Frontend build:
@@ -96,9 +94,10 @@ Existing Vite warnings about dynamic imports and chunk size may appear during `p
 
 - Prefer existing patterns over new abstractions.
 - Keep changes scoped to the user request.
+- Never revert user changes unless the user explicitly asks.
 - Keep generated/build artifacts out of commits unless explicitly requested.
 - Do not add telemetry, analytics, crash uploaders, or remote reporting.
-- Do not log credentials, private keys, tokens, bucket object names, local paths, or remote paths unless there is an explicit user-facing reason and the data is not sensitive.
+- Do not log credentials, private keys, tokens, object keys, local paths, or remote paths unless there is an explicit user-facing reason and the data is not sensitive.
 
 ## Agent Tooling
 
