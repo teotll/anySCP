@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { CustomSelect } from "../shared/CustomSelect";
-import { RefreshCw, CheckCircle2, AlertCircle, Download } from "lucide-react";
 import type { CursorStyle } from "../../stores/settings-store";
 
 // ─── Shared styles ───────────────────────────────────────────────────────────
@@ -127,17 +126,6 @@ export function SettingsPage() {
           </div>
         </section>
 
-        {/* Updates */}
-        <section className="mb-8">
-          <h2 className="text-[length:var(--text-xs)] font-semibold uppercase tracking-wider text-text-muted mb-4">
-            Updates
-          </h2>
-
-          <div className="flex flex-col gap-4">
-            <UpdateChecker />
-          </div>
-        </section>
-
         {/* Note */}
         <p className="text-[length:var(--text-2xs)] text-text-muted">
           Terminal settings apply to new terminals. Existing terminals keep their current settings.
@@ -179,171 +167,6 @@ function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onCha
         ].join(" ")}
       />
     </button>
-  );
-}
-
-// ─── Update checker ─────────────────────────────────────────────────────────
-
-type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "downloading" | "ready" | "error";
-
-function UpdateChecker() {
-  const [status, setStatus] = useState<UpdateStatus>("idle");
-  const [version, setVersion] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-
-  const checkForUpdate = useCallback(async () => {
-    setStatus("checking");
-    setError(null);
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
-
-      if (update) {
-        setVersion(update.version);
-        setStatus("available");
-      } else {
-        setStatus("up-to-date");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to check for updates");
-      setStatus("error");
-    }
-  }, []);
-
-  const installUpdate = useCallback(async () => {
-    setStatus("downloading");
-    setProgress(0);
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
-      if (!update) return;
-
-      let downloaded = 0;
-      let totalBytes = 0;
-
-      await update.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          totalBytes = event.data.contentLength ?? 0;
-        } else if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
-          if (totalBytes > 0) {
-            setProgress(Math.round((downloaded / totalBytes) * 100));
-          }
-        } else if (event.event === "Finished") {
-          setStatus("ready");
-        }
-      });
-
-      setStatus("ready");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
-      setStatus("error");
-    }
-  }, []);
-
-  const handleRelaunch = useCallback(async () => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("plugin:updater|restart");
-    } catch {
-      // Fallback: just tell the user to restart manually
-    }
-  }, []);
-
-  return (
-    <div className="px-4 py-3 rounded-lg bg-bg-surface border border-border/50">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className={LABEL_CLASS}>App Version</p>
-          <p className={DESC_CLASS}>
-            {status === "up-to-date" && "You're on the latest version"}
-            {status === "available" && `v${version} is available`}
-            {status === "downloading" && `Downloading update... ${progress}%`}
-            {status === "ready" && "Update downloaded. Restart to apply."}
-            {status === "error" && (error ?? "Something went wrong")}
-            {(status === "idle" || status === "checking") && "Current: v0.1.0"}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Status icon */}
-          {status === "up-to-date" && (
-            <CheckCircle2 size={14} strokeWidth={2} className="text-status-connected shrink-0" />
-          )}
-          {status === "error" && (
-            <AlertCircle size={14} strokeWidth={2} className="text-status-error shrink-0" />
-          )}
-
-          {/* Action button */}
-          {(status === "idle" || status === "up-to-date" || status === "error") && (
-            <button
-              onClick={() => void checkForUpdate()}
-              className={[
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg",
-                "text-[length:var(--text-xs)] font-medium",
-                "bg-bg-base border border-border text-text-secondary",
-                "hover:text-text-primary hover:border-border-focus",
-                "transition-all duration-[var(--duration-fast)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              ].join(" ")}
-            >
-              <RefreshCw size={12} strokeWidth={2} />
-              Check
-            </button>
-          )}
-
-          {status === "checking" && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[length:var(--text-xs)] font-medium text-text-muted">
-              <RefreshCw size={12} strokeWidth={2} className="motion-safe:animate-spin" />
-              Checking...
-            </span>
-          )}
-
-          {status === "available" && (
-            <button
-              onClick={() => void installUpdate()}
-              className={[
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg",
-                "text-[length:var(--text-xs)] font-medium",
-                "bg-accent text-text-inverse",
-                "hover:bg-accent-hover",
-                "transition-all duration-[var(--duration-fast)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              ].join(" ")}
-            >
-              <Download size={12} strokeWidth={2} />
-              Update to v{version}
-            </button>
-          )}
-
-          {status === "downloading" && (
-            <div className="w-24 h-1.5 rounded-full bg-bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-accent transition-[width] duration-200"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          )}
-
-          {status === "ready" && (
-            <button
-              onClick={() => void handleRelaunch()}
-              className={[
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg",
-                "text-[length:var(--text-xs)] font-medium",
-                "bg-status-connected text-text-inverse",
-                "hover:opacity-90",
-                "transition-all duration-[var(--duration-fast)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              ].join(" ")}
-            >
-              Restart Now
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -406,4 +229,3 @@ function NumberSetting({ id, value, min, max, step, onChange }: {
     />
   );
 }
-

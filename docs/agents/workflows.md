@@ -63,15 +63,11 @@ Stop the container:
 make ssh-down
 ```
 
-## Tauri Build Signing
+## Releases And Updates
 
-`pnpm tauri build` can fail when an updater public key exists but no private key is configured:
+GitHub release automation is active for macOS tag builds. The in-app updater is intentionally disabled for now.
 
-```text
-A public key has been found, but no private key.
-```
-
-For signed releases, set `TAURI_SIGNING_PRIVATE_KEY`. For local unsigned builds, adjust updater signing config rather than working around the error in application code.
+Do not re-enable updater signing casually. If Retoom adds in-app updates later, add a fresh updater key, restore the Tauri updater config, document the required GitHub secrets, and test a signed update path before tagging a release.
 
 ## Frontend Notes
 
@@ -99,7 +95,7 @@ Before changing release behavior, inspect:
 - `.github/workflows/release.yml`
 - `src-tauri/tauri.conf.json`
 - package/Cargo version metadata
-- updater signing settings
+- updater posture if in-app updates are being reintroduced
 
 ## GitHub Repository
 
@@ -109,5 +105,5 @@ The repository is `teotll/Retoom`. If it is renamed again, update these together
 - `AGENTS.md` expected remote line.
 - `package.json` repository URL.
 - `src-tauri/Cargo.toml` repository and homepage URLs.
-- `src-tauri/tauri.conf.json` updater endpoint.
+- `src-tauri/tauri.conf.json` release/updater-related URLs, if any.
 - local git remote.

@@ -64,8 +64,6 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -79,7 +77,6 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-          updaterJsonKeepUniversal: true
 
   update-release-notes:
     needs: build
@@ -123,9 +120,7 @@ jobs:
           xattr -cr /Applications/Retoom.app
           \`\`\`
 
-          ## Auto-Updates
-
-          Already have Retoom installed? Go to **Settings > Updates** and click **Check** to update in-app.
+          Retoom does not currently enable in-app auto-updates.
           BODY
 
       - name: Update release body

@@ -130,7 +130,7 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-If a public update signing key is present in the Tauri config, release builds require the matching private key in `TAURI_SIGNING_PRIVATE_KEY`. For local unsigned testing, remove or adjust the updater signing configuration before building.
+Retoom currently publishes macOS release artifacts through GitHub Releases. The in-app updater is disabled for now, so local and release builds do not require a Tauri updater signing key.
 
 ## Tech Stack
 
@@ -186,16 +186,6 @@ src-tauri/src/                # Rust backend
 ```
 
 ## Troubleshooting
-
-### Tauri Signing Key
-
-If `pnpm tauri build` fails with:
-
-```text
-A public key has been found, but no private key.
-```
-
-set `TAURI_SIGNING_PRIVATE_KEY` for signed releases, or disable updater signing for local builds.
 
 ### SSH Connections
 
