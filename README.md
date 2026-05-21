@@ -3,120 +3,115 @@
 </p>
 
 <p align="center">
-  <strong>A modern desktop client for SSH, SFTP, and S3 with a clean, powerful interface</strong>
+  <strong>A desktop client for SSH, SFTP, S3-compatible storage, and Cloudflare R2 administration</strong>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> &bull;
   <a href="#screenshots">Screenshots</a> &bull;
-  <a href="#installation">Installation</a> &bull;
   <a href="#building">Building</a> &bull;
-  <a href="#contributing">Contributing</a> &bull;
+  <a href="#project-structure">Project Structure</a> &bull;
   <a href="#license">License</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/macnev2013/anySCP/releases"><img src="https://img.shields.io/github/v/release/macnev2013/anySCP" alt="Release"/></a>
-  <a href="https://github.com/macnev2013/anySCP/releases"><img src="https://img.shields.io/github/downloads/macnev2013/anySCP/total" alt="Downloads"/></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue" alt="Platform"/>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License MIT"/></a>
-  <a href="https://github.com/macnev2013/anySCP/stargazers"><img src="https://img.shields.io/github/stars/macnev2013/anySCP?style=social" alt="Stars"/></a>
 </p>
 
-<p align="center">
-  Free and open-source alternative to Termius, PuTTY, and WinSCP.<br/>
-  A cross-platform SSH client, SFTP file manager, and S3 desktop browser with split panes, drag-and-drop uploads, and command snippets.
-</p>
+---
+
+## Fork Status
+
+This repository is a fork of the original [macnev2013/anySCP](https://github.com/macnev2013/anySCP) project. It keeps the same MIT license and core idea, but this fork is expected to diverge quickly.
+
+The current direction is a more security-conscious operations client with stronger local-only defaults, revived SFTP explorer workflows, and first-class Cloudflare R2 management alongside SSH, SFTP, and S3-compatible storage.
 
 ---
 
 <p align="center">
   <img src="screens/anyscp.gif" alt="AnySCP Demo" width="800"/>
 </p>
-<p align="center"><em>SSH terminals, SFTP file management, and S3 cloud storage -- all in one app.</em></p>
+<p align="center"><em>SSH terminals, SFTP file management, S3-compatible storage, and Cloudflare R2 tooling in one desktop app.</em></p>
 
 ---
 
-## 🚀 Overview
+## Overview
 
-AnySCP is a free, open-source desktop application that combines an SSH terminal, SFTP file explorer, and S3-compatible cloud storage browser into a single, fast, privacy-first tool. Built with Tauri v2 (Rust backend + React frontend), it runs natively on macOS, Windows, and Linux. No cloud accounts, no subscriptions -- your credentials stay on your machine.
+AnySCP is a Tauri v2 desktop application with a Rust backend and React frontend. It combines SSH terminal sessions, SFTP file browsing, S3-compatible object storage browsing, Cloudflare R2 account management, snippets, history, and SSH port forwarding in one local application.
 
-## ⚡ How AnySCP Compares
+This fork is intentionally local-first:
 
-| Feature | AnySCP | Termius | PuTTY | WinSCP | Cyberduck |
-|---------|--------|---------|-------|--------|-----------|
-| SSH Terminal | Yes | Yes | Yes | No | No |
-| SFTP Browser | Yes | Yes | No | Yes | Yes |
-| S3 Browser | Yes | No | No | No | Yes |
-| Split Panes | Yes | Yes | No | No | No |
-| Port Forwarding | Yes | Yes | Yes | No | No |
-| Command Snippets | Yes | Yes | No | No | No |
-| Cross-Platform | Yes | Yes | Windows | Windows | Yes |
-| Free (no limits) | Yes | No | Yes | Yes | Yes |
-| No Account Required | Yes | No | Yes | Yes | Yes |
-| Open Source | Yes | No | Yes | Yes | Yes (GPL) |
-| Credential Privacy | Local (OS keychain) | Cloud-synced | Local | Local | Local |
+- Telemetry is disabled.
+- Credentials are stored in the operating system keychain.
+- SSH host key verification is implemented for safer first-use and repeat connections.
+- Cloud and remote operations are handled by the Rust backend instead of exposing secrets to the frontend.
 
-## ✨ Features
+## Features
 
-### 💻 SSH Terminal Client
-- Full-featured terminal emulator powered by xterm.js with GPU-accelerated WebGL rendering
-- Split terminal panes (horizontal and vertical) within a single SSH session
-- In-terminal search with regex support
-- Tabbed SSH sessions with keyboard shortcuts
-- Configurable keep-alive intervals, startup commands, default shell, and proxy jump (bastion host)
-- SSH key authentication with automatic PPK-to-OpenSSH conversion
-- Import connections from `~/.ssh/config`
+### SSH Terminal
 
-### 📁 SFTP File Manager
-- Browse, upload, download, rename, move, copy, and delete remote files and directories
-- Drag-and-drop file upload from your desktop directly into the remote file browser
-- Multi-select files with Ctrl+Click and Shift+Click for bulk operations
-- Cut, copy, and paste files between remote directories
-- Inline file and folder creation
-- Edit remote files in VS Code -- automatically re-uploads when you save
-- Transfer queue with real-time progress bars, transfer speed, and ETA
-- Concurrent file transfers with configurable parallelism
+- SSH terminal sessions powered by xterm.js.
+- Split terminal panes within a session.
+- Searchable terminal output.
+- Saved hosts with labels, notes, colors, groups, and environment metadata.
+- Password and key-based authentication.
+- SSH config import from `~/.ssh/config`.
+- Host key verification support.
+- Proxy jump / bastion host support.
+- Connection history and recent connections.
 
-### ☁️ S3 Cloud Storage Browser
-- Connect to **Amazon S3**, **MinIO**, **Cloudflare R2**, **Backblaze B2**, **Wasabi**, **DigitalOcean Spaces**, or any S3-compatible storage service
-- Same file browser UI as SFTP -- sort, multi-select, context menus, keyboard shortcuts
-- Drag-and-drop upload with recursive directory support
-- Create files, create folders, bulk delete (including recursive folder delete)
-- Generate and copy presigned URLs for sharing
-- Edit S3 objects in VS Code with automatic re-upload on save
-- Transfer progress tracking with speed and ETA
-- Switch between multiple buckets within a single connection
+### SFTP Explorer
 
-### 🔗 Server & Connection Management
-- Save SSH hosts and S3 connections with labels, colors, environment tags, and notes
-- Organize connections into color-coded groups
-- Import SSH hosts from `~/.ssh/config` with one click
-- One-click connect using credentials stored in your OS keychain
-- Recent connections list for quick access
-- Full connection history with audit log
+- Sidebar Explorer page for choosing active SFTP sessions.
+- Per-session SFTP browser tabs.
+- Browse, create, rename, move, copy, delete, upload, and download remote files and folders.
+- Multi-select support for bulk SFTP operations.
+- Multi-select downloads for files, folders, and mixed selections.
+- Recursive folder downloads through the transfer manager.
+- Save-as paths are preserved for single-file downloads.
+- Drag-and-drop uploads.
+- Remote file editing through VS Code with re-upload on save.
+- Transfer queue with progress, speed, ETA, and configurable concurrency.
 
-### 📋 Command Snippets Library
-- Save frequently used shell commands with labels and descriptions
-- Create parameterized command templates with `{{variable}}` placeholders
-- Organize snippets into folders
-- Quick-insert panel accessible from any terminal session
-- Full-text search across all saved snippets
+### S3-Compatible Storage
 
-### 🔀 SSH Port Forwarding
-- Set up local and remote SSH tunnels
-- Create, start, and stop port forwarding rules per host
-- Tunnels create their own SSH connections automatically -- no terminal session needed
-- Monitor active tunnel status in real time
-- Presets for common services (PostgreSQL, MySQL, Redis, MongoDB, HTTP, Kubernetes)
+- Browser for Amazon S3, MinIO, Cloudflare R2 S3 endpoints, Backblaze B2, Wasabi, DigitalOcean Spaces, and other compatible providers.
+- Bucket and object navigation with the shared Explorer UI.
+- Object upload, download, delete, folder-style prefixes, and bulk operations.
+- Presigned URL generation.
+- VS Code edit-and-upload workflow for objects.
+- Transfer progress tracking.
 
-### 🔐 Security & Privacy
-- Credentials stored in your **OS keychain** (macOS Keychain, Windows Credential Manager, Linux libsecret/KWallet)
-- SSH private keys and passwords never leave the Rust backend process
-- Fully offline -- no internet connection required after installation
-- Open source -- audit the code yourself
+### Cloudflare R2 Dashboard
 
-## 📸 Screenshots
+- R2-aware connection metadata with account ID and admin API token storage.
+- Bucket listing and bucket lifecycle operations.
+- CORS policy viewing, editing, and deletion.
+- Lifecycle policy viewing, editing, and deletion.
+- Custom domain management with domain validation and typed destructive confirmations.
+- Raw metrics view for account and bucket inspection.
+- Hardened Cloudflare API client with HTTPS-only requests, timeouts, no redirects, and typed error handling.
+- Cloudflare API error codes surfaced in the UI with inline connection-edit actions for credential and permission issues.
+
+### Connection Tools
+
+- Saved SSH hosts and object-storage connections.
+- OS keychain-backed credential storage.
+- Color-coded groups.
+- Snippets library with parameterized command templates.
+- SSH local and remote port forwarding.
+- Settings for transfer behavior and app preferences.
+
+### Security And Privacy
+
+- No telemetry collection in this fork.
+- Secrets are kept out of frontend state where practical.
+- Passwords, SSH keys, S3 secrets, and R2 admin tokens are stored in the OS keychain.
+- R2 admin tokens are removed when an R2 connection is converted to a non-R2 provider.
+- Tauri command inputs are validated for the newer R2 management surface.
+- Cloudflare custom domain path segments are DNS-validated and percent-encoded before API calls.
+
+## Screenshots
 
 | Connection Manager | SSH Terminal |
 |:--:|:--:|
@@ -126,153 +121,134 @@ AnySCP is a free, open-source desktop application that combines an SSH terminal,
 | File Explorer | Command Snippets |
 |:--:|:--:|
 | ![File Explorer](screens/explorer.png) | ![Snippets](screens/snippets.png) |
-| *SFTP & S3 with drag-drop, context menus* | *Parameterized templates with quick-insert* |
+| *SFTP and S3-style browsing with drag-and-drop and context menus* | *Parameterized templates with quick insert* |
 
-## 📥 Installation
-
-### Download
-1. Download the latest release from the [Releases](https://github.com/macnev2013/anySCP/releases) page
-2. Choose the right file for your platform:
-   - **macOS (Apple Silicon)**: `.dmg` (aarch64)
-   - **macOS (Intel)**: `.dmg` (x64)
-   - **Windows**: `.msi` or `.exe`
-   - **Linux**: `.deb` or `.AppImage`
-3. Install and launch
-
-> **macOS note**: If you see "app is damaged", run: `xattr -cr /Applications/anyscp.app`
-
-### Requirements
-- macOS 11+, Windows 10+, or Linux (Ubuntu 22.04+)
-- For SFTP: SSH access to remote servers
-- For S3: Access key and secret key (or S3-compatible credentials)
-
-## 🔨 Building
+## Building
 
 ### Prerequisites
+
 - [Node.js](https://nodejs.org) 18+
 - [pnpm](https://pnpm.io)
-- [Rust](https://rustup.rs) (latest stable)
-- Platform-specific Tauri dependencies: [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+- [Rust](https://rustup.rs) stable
+- Platform-specific [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
 
-### Build Instructions
+### Development
 
 ```bash
-# Clone the repository
-git clone https://github.com/macnev2013/anyscp.git
-cd anyscp
+git clone https://github.com/teotll/anySCP.git
+cd anySCP
 
-# Install frontend dependencies
 pnpm install
-
-# Run in development mode (hot-reload)
 pnpm tauri dev
+```
 
-# Build for production (generates platform-specific installer)
+### Production Build
+
+```bash
 pnpm tauri build
 ```
 
-## 🛠 Tech Stack
+If a public update signing key is present in the Tauri config, release builds require the matching private key in `TAURI_SIGNING_PRIVATE_KEY`. For local unsigned testing, remove or adjust the updater signing configuration before building.
+
+## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Desktop runtime | [Tauri v2](https://v2.tauri.app) |
-| Backend | Rust (tokio, russh, russh-sftp, rust-s3, rusqlite) |
-| Frontend | React 19, TypeScript (strict), Tailwind CSS v4 |
-| Terminal | xterm.js with WebGL renderer |
+|-------|------------|
+| Desktop runtime | Tauri v2 |
+| Backend | Rust, Tokio, russh, russh-sftp, rust-s3, rusqlite, reqwest |
+| Frontend | React 19, TypeScript, Tailwind CSS v4 |
+| Terminal | xterm.js |
 | State management | Zustand |
-| Credential storage | OS keychain via `keyring` crate |
-| Database | SQLite (bundled, zero config) |
+| Credential storage | OS keychain via the `keyring` crate |
+| Database | SQLite |
 
-## 🏗 Architecture
+## Project Structure
 
-AnySCP follows a strict frontend/backend separation:
-
-- **Rust does the heavy lifting** -- all SSH, SFTP, S3, encryption, and file I/O runs in Rust
-- **React is a thin view layer** -- renders UI and manages local state via Zustand
-- **Tauri IPC** bridges the two with type-safe commands (request/response) and events (server push)
-- **Credentials never cross the IPC boundary** -- the frontend never sees passwords or private keys
-- **Shared `FileSystemProvider` abstraction** -- SFTP and S3 browsers use identical UI components with capability flags that show/hide features per protocol
-
-### Project Structure
-
-```
+```text
 src/                          # React frontend
   components/
-    terminal/                 # SSH terminal, split panes, search
-    explorer/                 # Shared file table, toolbar, drop zone
-    sftp/                     # SFTP browser, session tabs
-    s3/                       # S3 browser, connect dialog
-    dashboard/                # Host cards, groups, connection manager
-    snippets/                 # Command snippet library
-    transfers/                # Transfer progress popover
-  stores/                     # Zustand state stores
-  providers/                  # SFTP & S3 file system providers
-  types/                      # TypeScript type definitions
+    dashboard/                # Host cards, groups, connection editing, recent connections
+    explorer/                 # Shared file browser table, toolbar, drop zone, context menus
+    history/                  # Connection and activity history
+    layout/                   # App shell, tab bar, status bar
+    port-forwarding/          # SSH tunnel management UI
+    quick-connect/            # Inline quick-connect controls
+    r2/                       # Cloudflare R2 dashboard
+    s3/                       # S3-compatible browser and connection dialog
+    sftp/                     # SFTP explorer page, browser, path bar, session picker, session tabs
+    settings/                 # Application settings
+    sidebar/                  # Main navigation
+    snippets/                 # Command snippet library and quick panel
+    terminal/                 # SSH terminal, panes, search, disconnect overlay
+    transfers/                # Transfer popover and transfer rows
+  hooks/                      # SSH, SFTP, transfer, keyboard, debounce, and resize hooks
+  providers/                  # Shared filesystem provider implementations
+  stores/                     # Zustand stores for tabs, sessions, hosts, transfers, settings, snippets
+  types/                      # TypeScript types for SSH, SFTP, S3, R2, explorer, layout
+  utils/                      # Formatting, time, and snippet resolution helpers
 
 src-tauri/src/                # Rust backend
-  ssh/                        # SSH connections, PTY, key management
-  sftp/                       # SFTP sessions, transfer manager
-  s3/                         # S3 sessions, transfer manager
-  db/                         # SQLite persistence layer
+  ai/                         # Local AI command surface placeholder
+  db/                         # SQLite schema, migrations, persistence commands
+  import/                     # SSH config import
+  portforward/                # SSH tunnel manager and commands
+  r2/                         # Cloudflare R2 API client, validation, and commands
+  s3/                         # S3 sessions, commands, and transfer manager
+  sftp/                       # SFTP commands and transfer manager
+  snippets/                   # Snippet persistence
+  ssh/                        # SSH manager, sessions, keys, handlers, commands
+  telemetry.rs                # Disabled telemetry surface
+  types/                      # Shared backend event, error, and session types
   vault/                      # OS keychain integration
-  snippets/                   # Snippet storage
-  portforward/                # SSH tunnel management
-  import/                     # SSH config parser
+  lib.rs                      # Tauri app setup and command registration
 ```
 
-## 🤝 Contributing
+## Troubleshooting
 
-Contributions are welcome! Here's how you can help:
+### Tauri Signing Key
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit your changes**: `git commit -m 'Add amazing feature'`
-4. **Push to the branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
+If `pnpm tauri build` fails with:
 
-Please open an issue first to discuss what you'd like to change.
+```text
+A public key has been found, but no private key.
+```
 
-## 🐛 Troubleshooting
+set `TAURI_SIGNING_PRIVATE_KEY` for signed releases, or disable updater signing for local builds.
 
-### SSH Connection Issues
-- **Can't connect**: Verify host, port, username, and credentials
-- **Authentication failed**: Check password or SSH key permissions
-- **Timeout**: Check firewall settings and network connectivity
+### SSH Connections
 
-### S3 Connection Issues
-- **Access Denied**: Verify your access key and secret key are correct
-- **Bucket not found**: Check the bucket name and region settings
-- **Invalid credentials**: Ensure IAM user has S3 permissions
+- Verify host, port, username, credentials, and firewall access.
+- If host key verification blocks a connection, inspect whether the server host key changed intentionally before trusting it.
+- Check SSH key permissions and key format if authentication fails.
 
-### File Operations
-- **Permission denied**: Ensure your user has appropriate file permissions
-- **Upload failed**: Check available disk space on remote server
+### SFTP Transfers
+
+- Confirm the remote account has read/write permissions for the target path.
+- For folder downloads, make sure the selected local destination has enough disk space.
+- Check the transfer popover for failed items and retry details.
+
+### S3 And R2
+
+- Confirm endpoint, region, bucket name, access key, and secret key.
+- For R2 dashboard actions, add the Cloudflare account ID and an admin API token to the connection.
+- If Cloudflare returns a permission error, edit the connection and verify the token scopes.
 
 ### macOS
-- **"App is damaged"**: Run `xattr -cr /Applications/anyscp.app`
 
-## 📄 License
+If macOS reports the app is damaged during local testing, remove quarantine metadata:
 
-This project is licensed under the MIT License -- see the [LICENSE](LICENSE) file for details.
+```bash
+xattr -cr /Applications/anyscp.app
+```
 
-## 🙏 Acknowledgments
+## License
 
-- Built with [Tauri](https://tauri.app) by the Tauri team
-- SSH implementation powered by [russh](https://github.com/warp-tech/russh)
-- Terminal emulation powered by [xterm.js](https://xtermjs.org)
-- S3 support powered by [rust-s3](https://github.com/durch/rust-s3)
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-## 💬 Support
+## Acknowledgments
 
-- **Issues**: [GitHub Issues](https://github.com/macnev2013/anySCP/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/macnev2013/anySCP/discussions)
-
----
-
-<p align="center">
-  If you find AnySCP useful, please consider giving it a <a href="https://github.com/macnev2013/anySCP">star on GitHub</a>!
-</p>
-
-<p align="center">
-  <a href="#top">Back to top</a>
-</p>
+- Forked from [macnev2013/anySCP](https://github.com/macnev2013/anySCP).
+- Built with [Tauri](https://tauri.app).
+- SSH implementation powered by [russh](https://github.com/warp-tech/russh).
+- Terminal emulation powered by [xterm.js](https://xtermjs.org).
+- S3 support powered by [rust-s3](https://github.com/durch/rust-s3).
