@@ -2,7 +2,7 @@
 
 # Test SSH server (linuxserver/openssh-server) for local development.
 # Exposes port 2222 with password and key auth enabled.
-SSH_CONTAINER := anyscp-test-sshd
+SSH_CONTAINER := retoom-test-sshd
 SSH_IMAGE     := lscr.io/linuxserver/openssh-server:latest
 SSH_PORT      := 2222
 SSH_USER      := testuser

@@ -1,6 +1,6 @@
 # Security Notes For Agents
 
-This fork started from a code audit/security-hardening workflow. Treat security regressions as high priority.
+Retoom started from a code audit/security-hardening workflow after forking anySCP. Treat security regressions as high priority.
 
 ## Non-Negotiables
 
@@ -69,4 +69,3 @@ Examples to avoid:
 - remote object keys.
 - bucket names in broad diagnostics.
 - token/account secrets.
-

@@ -719,7 +719,7 @@ pub async fn sftp_edit_in_vscode(
         .unwrap_or_else(|| "file".to_string());
 
     // Create temp directory
-    let temp_dir = std::env::temp_dir().join("anyscp-edit");
+    let temp_dir = std::env::temp_dir().join("retoom-edit");
     tokio::fs::create_dir_all(&temp_dir)
         .await
         .map_err(|e| SftpError::LocalIoError(e.to_string()))?;

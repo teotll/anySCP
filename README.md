@@ -1,43 +1,26 @@
-<p align="center">
-  <img src="screens/header.png" alt="AnySCP" width="100%"/>
-</p>
+# Retoom
 
-<p align="center">
-  <strong>A desktop client for SSH, SFTP, S3-compatible storage, and Cloudflare R2 administration</strong>
-</p>
+**Remote tools for macOS.**
 
-<p align="center">
-  <a href="#features">Features</a> &bull;
-  <a href="#screenshots">Screenshots</a> &bull;
-  <a href="#building">Building</a> &bull;
-  <a href="#project-structure">Project Structure</a> &bull;
-  <a href="#license">License</a>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License MIT"/></a>
-</p>
-
----
+Retoom is a macOS-focused desktop app for SSH terminals, SFTP file browsing, S3-compatible storage, and Cloudflare R2 administration. It is built with Tauri v2, Rust, React, and TypeScript.
 
 ## Fork Status
 
-This repository is a fork of the original [macnev2013/anySCP](https://github.com/macnev2013/anySCP) project. It keeps the same MIT license and core idea, but this fork is expected to diverge quickly.
+Retoom was forked from [macnev2013/anySCP](https://github.com/macnev2013/anySCP) on **May 20, 2026**.
 
-The current direction is a more security-conscious operations client with stronger local-only defaults, revived SFTP explorer workflows, and first-class Cloudflare R2 management alongside SSH, SFTP, and S3-compatible storage.
+This fork keeps the MIT license and credits the original project, but it is expected to diverge quickly. The current direction is a local-first macOS operations client with stronger security defaults, revived SFTP explorer workflows, first-class Cloudflare R2 management, and future adapters for additional remote filesystems.
 
----
+The GitHub repository currently still lives at [teotll/anySCP](https://github.com/teotll/anySCP). The repository rename will happen separately.
 
-<p align="center">
-  <img src="screens/anyscp.gif" alt="AnySCP Demo" width="800"/>
-</p>
-<p align="center"><em>SSH terminals, SFTP file management, S3-compatible storage, and Cloudflare R2 tooling in one desktop app.</em></p>
+## Platform Scope
 
----
+Retoom is macOS-only by design.
+
+The original anySCP project had cross-platform support, and some Windows or Linux behavior may still work because of that inherited code. That is incidental, not a current Retoom design goal.
 
 ## Overview
 
-AnySCP is a Tauri v2 desktop application with a Rust backend and React frontend. It combines SSH terminal sessions, SFTP file browsing, S3-compatible object storage browsing, Cloudflare R2 account management, snippets, history, and SSH port forwarding in one local application.
+Retoom combines remote terminal, file, object-storage, and Cloudflare R2 workflows into one local desktop workspace. The main UI is a left sidebar plus unified tabs, so SSH sessions, SFTP explorers, S3 browsers, and the R2 dashboard feel like parts of one operations app rather than separate tools.
 
 This fork is intentionally local-first:
 
@@ -93,6 +76,10 @@ This fork is intentionally local-first:
 - Hardened Cloudflare API client with HTTPS-only requests, timeouts, no redirects, and typed error handling.
 - Cloudflare API error codes surfaced in the UI with inline connection-edit actions for credential and permission issues.
 
+### Remote Filesystem Direction
+
+Retoom will include adapters for additional remote filesystems over time. The exact providers are still to be confirmed, but new adapters should fit the existing Explorer/provider model instead of becoming isolated one-off screens.
+
 ### Connection Tools
 
 - Saved SSH hosts and object-storage connections.
@@ -111,22 +98,11 @@ This fork is intentionally local-first:
 - Tauri command inputs are validated for the newer R2 management surface.
 - Cloudflare custom domain path segments are DNS-validated and percent-encoded before API calls.
 
-## Screenshots
-
-| Connection Manager | SSH Terminal |
-|:--:|:--:|
-| ![Connection Manager](screens/hosts.png) | ![SSH Terminal](screens/terminal.png) |
-| *Organize servers with groups, colors, and tags* | *Split panes, search, and tabbed sessions* |
-
-| File Explorer | Command Snippets |
-|:--:|:--:|
-| ![File Explorer](screens/explorer.png) | ![Snippets](screens/snippets.png) |
-| *SFTP and S3-style browsing with drag-and-drop and context menus* | *Parameterized templates with quick insert* |
-
 ## Building
 
 ### Prerequisites
 
+- macOS
 - [Node.js](https://nodejs.org) 18+
 - [pnpm](https://pnpm.io)
 - [Rust](https://rustup.rs) stable
@@ -159,7 +135,7 @@ If a public update signing key is present in the Tauri config, release builds re
 | Frontend | React 19, TypeScript, Tailwind CSS v4 |
 | Terminal | xterm.js |
 | State management | Zustand |
-| Credential storage | OS keychain via the `keyring` crate |
+| Credential storage | macOS Keychain via the `keyring` crate |
 | Database | SQLite |
 
 ## Project Structure
@@ -199,7 +175,7 @@ src-tauri/src/                # Rust backend
   ssh/                        # SSH manager, sessions, keys, handlers, commands
   telemetry.rs                # Disabled telemetry surface
   types/                      # Shared backend event, error, and session types
-  vault/                      # OS keychain integration
+  vault/                      # macOS Keychain integration
   lib.rs                      # Tauri app setup and command registration
 ```
 
@@ -238,7 +214,7 @@ set `TAURI_SIGNING_PRIVATE_KEY` for signed releases, or disable updater signing 
 If macOS reports the app is damaged during local testing, remove quarantine metadata:
 
 ```bash
-xattr -cr /Applications/anyscp.app
+xattr -cr /Applications/Retoom.app
 ```
 
 ## License
@@ -247,7 +223,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ## Acknowledgments
 
-- Forked from [macnev2013/anySCP](https://github.com/macnev2013/anySCP).
+- Forked from [macnev2013/anySCP](https://github.com/macnev2013/anySCP) on May 20, 2026.
 - Built with [Tauri](https://tauri.app).
 - SSH implementation powered by [russh](https://github.com/warp-tech/russh).
 - Terminal emulation powered by [xterm.js](https://xtermjs.org).

@@ -4,21 +4,22 @@ This file is the entry point for future Codex sessions in this repository. Read 
 
 ## What The App Does
 
-AnySCP is an operations desktop app for people who manage remote machines and object storage. Users save SSH and object-storage connections, open SSH terminals, browse remote SFTP folders, move files, manage S3-compatible buckets, and administer Cloudflare R2 settings such as CORS, lifecycle rules, domains, and metrics.
+Retoom is an operations desktop app for people who manage remote machines and object storage from macOS. Users save SSH and object-storage connections, open SSH terminals, browse remote SFTP folders, move files, manage S3-compatible buckets, and administer Cloudflare R2 settings such as CORS, lifecycle rules, domains, and metrics.
 
 The main interaction model is a left sidebar plus unified tabs. SSH sessions, SFTP explorers, S3 browsers, and the R2 dashboard should feel like parts of one local operations workspace rather than separate apps.
 
 ## Project Snapshot
 
-AnySCP is a Tauri v2 desktop app with a React/TypeScript frontend and Rust backend. This repository is the `teotll/anySCP` fork of the original `macnev2013/anySCP` project and is expected to diverge quickly.
+Retoom is a Tauri v2 desktop app with a React/TypeScript frontend and Rust backend. This repository is currently the `teotll/anySCP` fork of the original `macnev2013/anySCP` project and is expected to diverge quickly. The fork date is May 20, 2026.
 
 Current fork direction:
 
-- Local-first SSH, SFTP, S3-compatible storage, and Cloudflare R2 operations client.
+- Local-first SSH, SFTP, S3-compatible storage, and Cloudflare R2 operations client for macOS.
 - Telemetry disabled.
 - SSH host key verification must stay intact.
 - Credentials and admin tokens belong in the OS keychain, not frontend state.
 - R2 dashboard is a first-class feature, not a minor S3 variant.
+- Additional remote filesystem adapters are expected, but providers are still to be confirmed.
 
 More context:
 

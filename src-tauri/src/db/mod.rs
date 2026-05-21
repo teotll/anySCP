@@ -150,7 +150,7 @@ pub struct HostDb {
 }
 
 impl HostDb {
-    /// Opens (or creates) the SQLite database at `<app_data_dir>/anyscp.db`
+    /// Opens (or creates) the SQLite database at `<app_data_dir>/retoom.db`
     /// and runs schema migrations.
     #[instrument(skip_all, fields(dir = %app_data_dir.display()))]
     pub fn new(app_data_dir: &std::path::Path) -> Result<Self, DbError> {
@@ -161,7 +161,7 @@ impl HostDb {
             ))
         })?;
 
-        let db_path = app_data_dir.join("anyscp.db");
+        let db_path = app_data_dir.join("retoom.db");
         let conn = Connection::open(&db_path).map_err(|e| {
             DbError::InitError(format!(
                 "could not open database at {}: {e}",
@@ -1339,7 +1339,7 @@ mod tests {
     /// path so the caller can keep the directory alive for the test duration.
     fn test_db() -> (HostDb, std::path::PathBuf) {
         let dir = std::env::temp_dir()
-            .join(format!("anyscp_test_{}", uuid::Uuid::new_v4()));
+            .join(format!("retoom_test_{}", uuid::Uuid::new_v4()));
         let db = HostDb::new(&dir).expect("HostDb::new");
         (db, dir)
     }

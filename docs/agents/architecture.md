@@ -1,4 +1,4 @@
-# Architecture Notes For Agents
+# Retoom Architecture Notes For Agents
 
 ## Frontend
 
@@ -45,6 +45,8 @@ For new Tauri commands, register them in `lib.rs` and keep TypeScript invoke pay
 
 ## Current Product Surfaces
 
+Retoom is macOS-only by design. Platform behavior inherited from anySCP can remain where it does not get in the way, but new product work should optimize for macOS.
+
 ### SSH
 
 SSH supports saved hosts, key/password auth, proxy jump, terminal panes, search, snippets, history, and port forwarding. Host key verification is part of the security posture and should not be bypassed for convenience.
@@ -62,6 +64,8 @@ Both should remain coherent. Multi-select downloads are supported for files, fol
 
 S3-compatible browsing uses the shared Explorer UI where possible. Keep provider-specific capabilities behind capability flags instead of scattering provider checks through table components.
 
+Future remote filesystem adapters should follow this provider/Explorer pattern unless there is a strong reason not to.
+
 ### Cloudflare R2
 
 The R2 dashboard uses Cloudflare's management API in addition to S3-compatible object access. R2 account IDs and admin API tokens are connection metadata; admin tokens live in the keychain.
@@ -72,4 +76,3 @@ R2 commands use a shared reqwest client with:
 - Connect and request timeouts.
 - Redirects disabled.
 - Typed error variants for frontend handling.
-

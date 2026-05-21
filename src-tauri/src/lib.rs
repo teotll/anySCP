@@ -25,7 +25,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
-        .with_env_filter("anyscp=debug,russh=info")
+        .with_env_filter("retoom=debug,retoom_lib=debug,russh=info")
         .init();
 
     tauri::Builder::default()

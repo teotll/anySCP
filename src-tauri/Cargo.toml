@@ -1,18 +1,18 @@
 [package]
-name = "anyscp"
+name = "retoom"
 version = "0.0.0-dev"
-description = "A modern desktop client for SSH, SFTP, and S3"
-authors = ["Nevil Macwan <macnev2013@gmail.com>"]
+description = "Remote tools for macOS"
+authors = ["Retoom contributors"]
 license = "MIT"
-repository = "https://github.com/macnev2013/anySCP"
-homepage = "https://github.com/macnev2013/anySCP"
+repository = "https://github.com/teotll/anySCP"
+homepage = "https://github.com/teotll/anySCP"
 edition = "2021"
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "anyscp_lib"
+name = "retoom_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
