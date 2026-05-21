@@ -133,19 +133,34 @@ pub fn has_credential(host_id: &str) -> bool {
 
 pub fn migrate_legacy_credentials(vault_keys: &[String]) -> Result<usize, VaultError> {
     let mut migrated = 0;
+    let mut first_error = None;
     for key in vault_keys {
-        if get_credential_from_service(SERVICE_NAME, key).is_ok() {
-            continue;
+        match get_credential_from_service(SERVICE_NAME, key) {
+            Ok(_) => continue,
+            Err(VaultError::NotFound(_)) => {}
+            Err(err) => {
+                first_error.get_or_insert(err);
+                continue;
+            }
         }
 
         match get_legacy_credential(key) {
             Ok(credential) => {
-                save_credential(key, &credential)?;
-                migrated += 1;
+                match save_credential(key, &credential) {
+                    Ok(()) => migrated += 1,
+                    Err(err) => {
+                        first_error.get_or_insert(err);
+                    }
+                }
             }
             Err(VaultError::NotFound(_)) => {}
-            Err(err) => return Err(err),
+            Err(err) => {
+                first_error.get_or_insert(err);
+            }
         }
+    }
+    if let Some(err) = first_error {
+        return Err(err);
     }
     Ok(migrated)
 }

@@ -39,8 +39,12 @@ pub fn run() {
                 .app_data_dir()
                 .map_err(|e| format!("could not resolve app data dir: {e}"))?;
 
-            migration::migrate_legacy_app_state(&app_data_dir)
-                .map_err(|e| format!("failed to migrate legacy anySCP app state: {e}"))?;
+            if let Err(err) = migration::migrate_legacy_app_state(&app_data_dir) {
+                tracing::warn!(
+                    error = %err,
+                    "failed to migrate legacy anySCP app state; continuing with Retoom state"
+                );
+            }
 
             let host_db = HostDb::new(&app_data_dir)
                 .map_err(|e| format!("failed to initialise database: {e}"))?;

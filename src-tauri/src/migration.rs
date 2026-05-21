@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 const CURRENT_DB: &str = "retoom.db";
 const LEGACY_DB: &str = "anyscp.db";
+// Retoom is macOS-only by design; these are Tauri app-data directory names
+// under ~/Library/Application Support from the original anySCP bundle/name.
 const LEGACY_APP_DIRS: &[&str] = &["com.macnev2013.anyscp", "anySCP", "anyscp"];
 
 pub fn migrate_legacy_app_state(app_data_dir: &Path) -> Result<(), String> {
@@ -34,7 +36,11 @@ fn copy_legacy_database_if_needed(app_data_dir: &Path) -> Result<(), String> {
         }
     }
 
-    tracing::info!("migrated legacy anySCP database to Retoom");
+    tracing::info!(
+        from = %legacy_db.display(),
+        to = %current_db.display(),
+        "migrated legacy anySCP database to Retoom"
+    );
     Ok(())
 }
 
