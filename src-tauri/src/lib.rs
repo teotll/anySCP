@@ -1,6 +1,7 @@
 mod ai;
 mod db;
 mod import;
+mod migration;
 mod portforward;
 mod r2;
 mod s3;
@@ -12,12 +13,12 @@ mod types;
 mod vault;
 
 use db::HostDb;
-use sftp::SftpManager;
-use sftp::transfer_manager::TransferManager;
 use portforward::manager::PortForwardManager;
 use r2::R2Manager;
-use s3::S3Manager;
 use s3::transfer_manager::S3TransferManager;
+use s3::S3Manager;
+use sftp::transfer_manager::TransferManager;
+use sftp::SftpManager;
 use ssh::manager::SshManager;
 use std::sync::Arc;
 use tauri::Manager;
@@ -38,8 +39,13 @@ pub fn run() {
                 .app_data_dir()
                 .map_err(|e| format!("could not resolve app data dir: {e}"))?;
 
+            migration::migrate_legacy_app_state(&app_data_dir)
+                .map_err(|e| format!("failed to migrate legacy anySCP app state: {e}"))?;
+
             let host_db = HostDb::new(&app_data_dir)
                 .map_err(|e| format!("failed to initialise database: {e}"))?;
+
+            migrate_legacy_vault_entries(&host_db);
 
             app.manage(Arc::new(host_db));
 
@@ -203,4 +209,44 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn migrate_legacy_vault_entries(host_db: &HostDb) {
+    let host_keys = host_db
+        .list_hosts()
+        .map(|hosts| hosts.into_iter().map(|host| host.id).collect::<Vec<_>>());
+    let s3_keys = host_db.list_s3_connections().map(|connections| {
+        connections
+            .into_iter()
+            .flat_map(|connection| {
+                [
+                    format!("s3:{}", connection.id),
+                    format!("r2-admin:{}", connection.id),
+                ]
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let mut vault_keys = Vec::new();
+    match host_keys {
+        Ok(keys) => vault_keys.extend(keys),
+        Err(err) => {
+            tracing::warn!(error = %err, "could not inspect hosts for legacy keychain migration")
+        }
+    }
+    match s3_keys {
+        Ok(keys) => vault_keys.extend(keys),
+        Err(err) => {
+            tracing::warn!(error = %err, "could not inspect S3 connections for legacy keychain migration")
+        }
+    }
+
+    match vault::migrate_legacy_credentials(&vault_keys) {
+        Ok(count) if count > 0 => tracing::info!(
+            credential_count = count,
+            "migrated legacy keychain entries to Retoom"
+        ),
+        Ok(_) => {}
+        Err(err) => tracing::warn!(error = %err, "legacy keychain migration failed"),
+    }
 }

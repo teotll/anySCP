@@ -18,6 +18,12 @@ Retoom is macOS-only by design.
 
 The original anySCP project had cross-platform support, and some Windows or Linux behavior may still work because of that inherited code. That is incidental, not a current Retoom design goal.
 
+## Rename Migration
+
+On first launch, Retoom looks for legacy anySCP local state and migrates it only when the new Retoom database does not already exist. The migration copies `anyscp.db` into `retoom.db` and attempts to copy known SSH, S3, and R2 keychain entries into Retoom's new keychain namespace.
+
+The legacy anySCP data is left in place. Retoom does not delete old databases or old keychain entries during migration.
+
 ## Overview
 
 Retoom combines remote terminal, file, object-storage, and Cloudflare R2 workflows into one local desktop workspace. The main UI is a left sidebar plus unified tabs, so SSH sessions, SFTP explorers, S3 browsers, and the R2 dashboard feel like parts of one operations app rather than separate tools.

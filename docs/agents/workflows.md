@@ -100,3 +100,14 @@ Before changing release behavior, inspect:
 - `src-tauri/tauri.conf.json`
 - package/Cargo version metadata
 - updater signing settings
+
+## GitHub Repository Rename Checklist
+
+The repo still uses `teotll/anySCP` until the GitHub repository is renamed. When it moves to the Retoom repo name, update these together:
+
+- `README.md` clone instructions and current-repo note.
+- `AGENTS.md` expected remote line.
+- `package.json` repository URL.
+- `src-tauri/Cargo.toml` repository and homepage URLs.
+- `src-tauri/tauri.conf.json` updater endpoint.
+- local git remote: `git remote set-url origin <new-url>`.

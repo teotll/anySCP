@@ -7,7 +7,8 @@ use tracing::instrument;
 
 /// Keychain service name used as the top-level namespace for every entry.
 /// All credentials are keyed as `(SERVICE_NAME, host_id)`.
-const SERVICE_NAME: &str = "com.retoom.credentials";
+const SERVICE_NAME: &str = "com.teotll.retoom.credentials";
+const LEGACY_SERVICE_NAMES: &[&str] = &["com.retoom.credentials", "com.anyscp.credentials"];
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -75,15 +76,7 @@ pub enum StoredCredential {
 /// the keychain C-API.  It is never written to disk or emitted to logs.
 #[instrument(skip(credential), fields(host_id = %host_id))]
 pub fn save_credential(host_id: &str, credential: &StoredCredential) -> Result<(), VaultError> {
-    let entry = keyring::Entry::new(SERVICE_NAME, host_id)
-        .map_err(|e| VaultError::Keychain(e.to_string()))?;
-
-    let json = serde_json::to_string(credential)
-        .map_err(|e| VaultError::InvalidData(e.to_string()))?;
-
-    entry
-        .set_password(&json)
-        .map_err(|e| VaultError::Keychain(e.to_string()))?;
+    save_credential_to_service(SERVICE_NAME, host_id, credential)?;
 
     tracing::debug!(host_id = %host_id, "credential saved to keychain");
     Ok(())
@@ -94,7 +87,101 @@ pub fn save_credential(host_id: &str, credential: &StoredCredential) -> Result<(
 /// Returns `VaultError::NotFound` when no entry exists for `host_id`.
 #[instrument(fields(host_id = %host_id))]
 pub fn get_credential(host_id: &str) -> Result<StoredCredential, VaultError> {
-    let entry = keyring::Entry::new(SERVICE_NAME, host_id)
+    match get_credential_from_service(SERVICE_NAME, host_id) {
+        Ok(credential) => Ok(credential),
+        Err(VaultError::NotFound(_)) => {
+            let credential = get_legacy_credential(host_id)?;
+            save_credential(host_id, &credential)?;
+            Ok(credential)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Remove the credential for `host_id` from the OS keychain.
+///
+/// Treating a missing entry as success avoids spurious errors when
+/// `delete_host` and `vault_delete_credential` are called together.
+#[instrument(fields(host_id = %host_id))]
+pub fn delete_credential(host_id: &str) -> Result<(), VaultError> {
+    let mut first_error = None;
+    for service_name in std::iter::once(SERVICE_NAME).chain(LEGACY_SERVICE_NAMES.iter().copied()) {
+        if let Err(err) = delete_credential_from_service(service_name, host_id) {
+            first_error.get_or_insert(err);
+        }
+    }
+
+    if let Some(err) = first_error {
+        return Err(err);
+    }
+
+    tracing::debug!(host_id = %host_id, "credential deleted from keychain");
+    Ok(())
+}
+
+/// Return `true` when a credential exists for `host_id`, without retrieving
+/// the secret value.
+pub fn has_credential(host_id: &str) -> bool {
+    std::iter::once(SERVICE_NAME)
+        .chain(LEGACY_SERVICE_NAMES.iter().copied())
+        .any(|service_name| {
+            keyring::Entry::new(service_name, host_id)
+                .and_then(|entry| entry.get_password())
+                .is_ok()
+        })
+}
+
+pub fn migrate_legacy_credentials(vault_keys: &[String]) -> Result<usize, VaultError> {
+    let mut migrated = 0;
+    for key in vault_keys {
+        if get_credential_from_service(SERVICE_NAME, key).is_ok() {
+            continue;
+        }
+
+        match get_legacy_credential(key) {
+            Ok(credential) => {
+                save_credential(key, &credential)?;
+                migrated += 1;
+            }
+            Err(VaultError::NotFound(_)) => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(migrated)
+}
+
+fn save_credential_to_service(
+    service_name: &str,
+    host_id: &str,
+    credential: &StoredCredential,
+) -> Result<(), VaultError> {
+    let entry = keyring::Entry::new(service_name, host_id)
+        .map_err(|e| VaultError::Keychain(e.to_string()))?;
+
+    let json =
+        serde_json::to_string(credential).map_err(|e| VaultError::InvalidData(e.to_string()))?;
+
+    entry
+        .set_password(&json)
+        .map_err(|e| VaultError::Keychain(e.to_string()))
+}
+
+fn get_legacy_credential(host_id: &str) -> Result<StoredCredential, VaultError> {
+    for service_name in LEGACY_SERVICE_NAMES {
+        match get_credential_from_service(service_name, host_id) {
+            Ok(credential) => return Ok(credential),
+            Err(VaultError::NotFound(_)) => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Err(VaultError::NotFound(host_id.to_string()))
+}
+
+fn get_credential_from_service(
+    service_name: &str,
+    host_id: &str,
+) -> Result<StoredCredential, VaultError> {
+    let entry = keyring::Entry::new(service_name, host_id)
         .map_err(|e| VaultError::Keychain(e.to_string()))?;
 
     let json = entry.get_password().map_err(|e| match e {
@@ -105,31 +192,15 @@ pub fn get_credential(host_id: &str) -> Result<StoredCredential, VaultError> {
     serde_json::from_str(&json).map_err(|e| VaultError::InvalidData(e.to_string()))
 }
 
-/// Remove the credential for `host_id` from the OS keychain.
-///
-/// Treating a missing entry as success avoids spurious errors when
-/// `delete_host` and `vault_delete_credential` are called together.
-#[instrument(fields(host_id = %host_id))]
-pub fn delete_credential(host_id: &str) -> Result<(), VaultError> {
-    let entry = keyring::Entry::new(SERVICE_NAME, host_id)
+fn delete_credential_from_service(service_name: &str, host_id: &str) -> Result<(), VaultError> {
+    let entry = keyring::Entry::new(service_name, host_id)
         .map_err(|e| VaultError::Keychain(e.to_string()))?;
 
     match entry.delete_credential() {
-        Ok(()) => {
-            tracing::debug!(host_id = %host_id, "credential deleted from keychain");
-            Ok(())
-        }
-        Err(keyring::Error::NoEntry) => Ok(()), // already absent — that is fine
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(VaultError::Keychain(e.to_string())),
     }
-}
-
-/// Return `true` when a credential exists for `host_id`, without retrieving
-/// the secret value.
-pub fn has_credential(host_id: &str) -> bool {
-    keyring::Entry::new(SERVICE_NAME, host_id)
-        .and_then(|e| e.get_password())
-        .is_ok()
 }
 
 // ---------------------------------------------------------------------------
@@ -249,8 +320,13 @@ mod tests {
         let id = unique_id("present");
         let _guard = KeychainGuard(id.clone());
 
-        save_credential(&id, &StoredCredential::Password { password: "x".to_string() })
-            .expect("save");
+        save_credential(
+            &id,
+            &StoredCredential::Password {
+                password: "x".to_string(),
+            },
+        )
+        .expect("save");
         assert!(has_credential(&id));
     }
 
@@ -260,8 +336,13 @@ mod tests {
         // Guard will also try to delete — that is fine because delete is idempotent.
         let _guard = KeychainGuard(id.clone());
 
-        save_credential(&id, &StoredCredential::Password { password: "y".to_string() })
-            .expect("save");
+        save_credential(
+            &id,
+            &StoredCredential::Password {
+                password: "y".to_string(),
+            },
+        )
+        .expect("save");
         assert!(has_credential(&id));
 
         delete_credential(&id).expect("delete");
@@ -280,10 +361,20 @@ mod tests {
         let id = unique_id("overwrite");
         let _guard = KeychainGuard(id.clone());
 
-        save_credential(&id, &StoredCredential::Password { password: "old".to_string() })
-            .expect("first save");
-        save_credential(&id, &StoredCredential::Password { password: "new".to_string() })
-            .expect("second save");
+        save_credential(
+            &id,
+            &StoredCredential::Password {
+                password: "old".to_string(),
+            },
+        )
+        .expect("first save");
+        save_credential(
+            &id,
+            &StoredCredential::Password {
+                password: "new".to_string(),
+            },
+        )
+        .expect("second save");
 
         match get_credential(&id).expect("get") {
             StoredCredential::Password { password } => assert_eq!(password, "new"),

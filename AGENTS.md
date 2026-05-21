@@ -27,6 +27,8 @@ More context:
 - [Security Notes](docs/agents/security.md)
 - [Workflow Notes](docs/agents/workflows.md)
 
+Retoom currently keeps GitHub URLs pointing at `teotll/anySCP` until the repository is renamed. Use the checklist in [Workflow Notes](docs/agents/workflows.md#github-repository-rename-checklist) when that happens.
+
 ## Repo State Checks
 
 If branch, remote, or worktree state is unclear, check it before editing:
